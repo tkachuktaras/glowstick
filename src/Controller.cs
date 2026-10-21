@@ -45,6 +45,7 @@ namespace Glowstick
         public volatile Btn LastPressed;       // buttons pressed in the last press (for presets that react to buttons)
         public long LastPressMs = -100000;
         public double Dim = 1, StickHue = 0.6;
+        public double PadBrightness = 1.0;     // per-controller brightness multiplier on top of the global one (Pro)
         public bool IdleOff;
 
         int inLen, outLen, reports;

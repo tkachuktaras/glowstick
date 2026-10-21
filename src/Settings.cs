@@ -70,6 +70,7 @@ namespace Glowstick
                             if (d.TryGetValue("Name", out v) && v is string) c.Name = (string)v;
                             if (d.TryGetValue("Preset", out v) && v is string) c.Preset = PresetLib.Migrate((string)v);
                             if (d.TryGetValue("Output", out v) && v is string) c.Output = (string)v;
+                            if (d.TryGetValue("Brightness", out v)) c.Brightness = Math.Max(0.1, Math.Min(1.0, Convert.ToDouble(v)));
                             Engine.Pads[kv.Key] = c;
                         }
                 }
@@ -121,8 +122,8 @@ namespace Glowstick
                     s["Order"] = new List<string>(Engine.Order);
                     Dictionary<string, object> pads = new Dictionary<string, object>();
                     foreach (KeyValuePair<string, PadConfig> kv in Engine.Pads)
-                        if (kv.Value.Name != "" || kv.Value.Preset != "")
-                            pads[kv.Key] = new Dictionary<string, object> { { "Name", kv.Value.Name }, { "Preset", kv.Value.Preset }, { "Output", kv.Value.Output } };
+                        if (kv.Value.Name != "" || kv.Value.Preset != "" || kv.Value.Output != "" || kv.Value.Brightness != 1.0)
+                            pads[kv.Key] = new Dictionary<string, object> { { "Name", kv.Value.Name }, { "Preset", kv.Value.Preset }, { "Output", kv.Value.Output }, { "Brightness", kv.Value.Brightness } };
                     s["Pads"] = pads;
                 }
                 File.WriteAllText(FilePath, new JavaScriptSerializer().Serialize(s), new UTF8Encoding(false));

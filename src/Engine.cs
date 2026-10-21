@@ -15,11 +15,11 @@ namespace Glowstick
     public class ControllerInfo
     {
         public string Id, Kind, Model, Name, OwnPreset, Warning, Output; public Color Color; public bool Virtual;
-        public int Rate, Battery; public bool Charging; public double HoursLeft;
+        public int Rate, Battery; public bool Charging; public double HoursLeft, Brightness;
     }
 
     // Settings of a specific controller (by MAC): a name, its own preset ("" — same as everyone), and the virtual pad kind
-    public class PadConfig { public string Name = "", Preset = "", Output = ""; }
+    public class PadConfig { public string Name = "", Preset = "", Output = ""; public double Brightness = 1.0; }
 
     public static class Engine
     {
@@ -182,6 +182,18 @@ namespace Glowstick
             Settings.Save();
         }
 
+        // A controller's own brightness multiplier (0.1 .. 1.0), on top of the global brightness — Pro
+        public static void SetPadBrightness(string id, double value)
+        {
+            value = Math.Max(0.1, Math.Min(1.0, value));
+            lock (Lock)
+            {
+                Config(id).Brightness = value;
+                foreach (Controller d in Devices) if (d.Id == id) d.PadBrightness = value;
+            }
+            Settings.Save();
+        }
+
         // A controller's own preset; null or "" — same as everyone
         public static void SetPadPreset(string id, string preset)
         {
@@ -210,7 +222,7 @@ namespace Glowstick
                     {
                         Id = d.Id, Kind = d.Bluetooth ? "Bluetooth" : "USB", Model = d.Model, Name = cfg != null ? cfg.Name : "",
                         OwnPreset = d.OwnPreset, Output = d.OutputKind, Color = d.Out.ToColor(), Virtual = d.Virtual, Rate = d.ReportRate,
-                        Battery = d.Battery, Charging = d.Charging, HoursLeft = d.HoursLeft,
+                        Battery = d.Battery, Charging = d.Charging, HoursLeft = d.HoursLeft, Brightness = d.PadBrightness,
                         Warning = d.NoVirtual ? Lang.T("hidden, but the virtual pad wasn't created — games don't see it")
                             : !GameModeActive || d.Hidden ? null
                             : Lang.T("games see it directly (couldn't hide it)")
@@ -341,7 +353,7 @@ namespace Glowstick
                     if (d.Fade < 1) c = Rgb.Lerp(d.FadeFrom, c, PresetLib.Smooth(d.Fade));
                     d.Current = c;
                     c = Overlays(d, c, nowMs, dt);
-                    Rgb o = c.Mul(Brightness * d.Dim).Clamp(); d.Out = o;
+                    Rgb o = c.Mul(Brightness * d.Dim * d.PadBrightness).Clamp(); d.Out = o;
                     int r = (int)Math.Round(o.R), g = (int)Math.Round(o.G), b = (int)Math.Round(o.B);
                     long since = ms - d.LastSendMs;
                     bool changed = r != d.LR || g != d.LG || b != d.LB;
@@ -545,7 +557,7 @@ namespace Glowstick
                     twin.Dispose();
                 }
                 c.BtPollMs = BtPollMs;
-                PadConfig oc; if (Pads.TryGetValue(c.Id, out oc) && oc.Output == "Xbox") c.OutputKind = "Xbox";
+                PadConfig oc; if (Pads.TryGetValue(c.Id, out oc)) { if (oc.Output == "Xbox") c.OutputKind = "Xbox"; c.PadBrightness = oc.Brightness; }
                 try { c.Start(hiddenOk ? client : null); } catch (Exception ex) { Log.Error("start " + c.Id, ex); }
                 c.Hidden = hiddenOk;
                 c.NoVirtual = hiddenOk && !c.Virtual;

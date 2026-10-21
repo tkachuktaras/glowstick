@@ -57,6 +57,27 @@ namespace Glowstick
                 m.Items.Add(outItem);
             }
 
+            // Per-controller brightness (on top of the global brightness) — Pro
+            if (Pro.Unlocked)
+            {
+                MenuItem br = new MenuItem { Header = Lang.T("Brightness") };
+                int cur = (int)Math.Round(info.Brightness * 100);
+                foreach (int pct in new[] { 100, 75, 50, 25 })
+                {
+                    int p = pct;
+                    MenuItem it = new MenuItem { Header = p + "%", IsChecked = cur == p };
+                    it.Click += (s, e) => IfPresent(id, () => Engine.SetPadBrightness(id, p / 100.0));
+                    br.Items.Add(it);
+                }
+                m.Items.Add(br);
+            }
+            else
+            {
+                MenuItem br = new MenuItem { Header = "🔒 " + Lang.T("Brightness") };
+                br.Click += (s, e) => { if (w != null) w.ShowPro(); };
+                m.Items.Add(br);
+            }
+
             m.Items.Add(new Separator());
             Add(m, Lang.T("Show battery on the light bar"), () => IfPresent(id, () => Engine.ShowBattery(id)));
             MenuItem test = new MenuItem { Header = Lang.T("Controller test…") };
