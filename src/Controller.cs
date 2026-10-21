@@ -283,6 +283,7 @@ namespace Glowstick
                 Btn btn = Pad.ReadButtons(raw);
                 byte[] send = raw;
                 if (Engine.Hotkeys && Hotkeys(btn, now) && pad != null) send = Masked(raw, now);
+                if (Pro.MapReport != null && pad != null) send = Pro.MapReport(this, raw, send, now);
                 try
                 {
                     IDualShock4Controller d = ds4; IXbox360Controller x = x360;

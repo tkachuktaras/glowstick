@@ -31,6 +31,11 @@ namespace Glowstick
         public static Action<SettingsPage> SettingsPageCreated;
         public static Func<string, ControllerExtra> ControllerExtra;         // an extra part of a controller's card (by id)
 
+        // Per input report (Pro): gyro → mouse, button remap, shift layers, macros. Runs on the controller's read thread,
+        // before the report is forwarded to the virtual pad. `raw` is the physical report, `send` the one about to be sent
+        // (already button-masked for held hotkeys); returns the report to forward (the same array when nothing was remapped).
+        public static Func<Controller, byte[], byte[], long, byte[]> MapReport;
+
         public static void Startup()
         {
             Init();
