@@ -38,6 +38,25 @@ namespace Glowstick
             AddPresetItems(own, info.OwnPreset, name => IfPresent(id, () => Engine.SetPadPreset(id, name)));
             m.Items.Add(own);
 
+            // What games see this controller as — Pro (a virtual DualSense isn't possible, so the choices are DS4 / Xbox 360)
+            if (Pro.Unlocked)
+            {
+                MenuItem outItem = new MenuItem { Header = Lang.T("Show to games as") };
+                MenuItem asDs4 = new MenuItem { Header = "DualShock 4", IsChecked = info.Output != "Xbox" };
+                MenuItem asXbox = new MenuItem { Header = "Xbox 360", IsChecked = info.Output == "Xbox" };
+                asDs4.Click += (s, e) => IfPresent(id, () => Engine.SetPadOutput(id, "DS4"));
+                asXbox.Click += (s, e) => IfPresent(id, () => Engine.SetPadOutput(id, "Xbox"));
+                outItem.Items.Add(asDs4);
+                outItem.Items.Add(asXbox);
+                m.Items.Add(outItem);
+            }
+            else
+            {
+                MenuItem outItem = new MenuItem { Header = "🔒 " + Lang.T("Show to games as") };
+                outItem.Click += (s, e) => { if (w != null) w.ShowPro(); };
+                m.Items.Add(outItem);
+            }
+
             m.Items.Add(new Separator());
             Add(m, Lang.T("Show battery on the light bar"), () => IfPresent(id, () => Engine.ShowBattery(id)));
             MenuItem test = new MenuItem { Header = Lang.T("Controller test…") };

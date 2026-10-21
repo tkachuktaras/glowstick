@@ -14,12 +14,12 @@ namespace Glowstick
 {
     public class ControllerInfo
     {
-        public string Id, Kind, Model, Name, OwnPreset, Warning; public Color Color; public bool Virtual;
+        public string Id, Kind, Model, Name, OwnPreset, Warning, Output; public Color Color; public bool Virtual;
         public int Rate, Battery; public bool Charging; public double HoursLeft;
     }
 
-    // Settings of a specific controller (by MAC): a name and its own preset ("" — same as everyone)
-    public class PadConfig { public string Name = "", Preset = ""; }
+    // Settings of a specific controller (by MAC): a name, its own preset ("" — same as everyone), and the virtual pad kind
+    public class PadConfig { public string Name = "", Preset = "", Output = ""; }
 
     public static class Engine
     {
@@ -170,6 +170,18 @@ namespace Glowstick
             Settings.Save();
         }
 
+        // What games see this controller as: "Xbox" — virtual Xbox 360, else virtual DualShock 4. Switches the virtual pad live.
+        public static void SetPadOutput(string id, string kind)
+        {
+            kind = kind == "Xbox" ? "Xbox" : "DS4";
+            lock (Lock)
+            {
+                Config(id).Output = kind == "Xbox" ? "Xbox" : "";
+                foreach (Controller d in Devices) if (d.Id == id) d.SwitchOutput(kind);
+            }
+            Settings.Save();
+        }
+
         // A controller's own preset; null or "" — same as everyone
         public static void SetPadPreset(string id, string preset)
         {
@@ -197,7 +209,7 @@ namespace Glowstick
                     r[k] = new ControllerInfo
                     {
                         Id = d.Id, Kind = d.Bluetooth ? "Bluetooth" : "USB", Model = d.Model, Name = cfg != null ? cfg.Name : "",
-                        OwnPreset = d.OwnPreset, Color = d.Out.ToColor(), Virtual = d.Virtual, Rate = d.ReportRate,
+                        OwnPreset = d.OwnPreset, Output = d.OutputKind, Color = d.Out.ToColor(), Virtual = d.Virtual, Rate = d.ReportRate,
                         Battery = d.Battery, Charging = d.Charging, HoursLeft = d.HoursLeft,
                         Warning = d.NoVirtual ? Lang.T("hidden, but the virtual pad wasn't created — games don't see it")
                             : !GameModeActive || d.Hidden ? null
@@ -533,6 +545,7 @@ namespace Glowstick
                     twin.Dispose();
                 }
                 c.BtPollMs = BtPollMs;
+                PadConfig oc; if (Pads.TryGetValue(c.Id, out oc) && oc.Output == "Xbox") c.OutputKind = "Xbox";
                 try { c.Start(hiddenOk ? client : null); } catch (Exception ex) { Log.Error("start " + c.Id, ex); }
                 c.Hidden = hiddenOk;
                 c.NoVirtual = hiddenOk && !c.Virtual;

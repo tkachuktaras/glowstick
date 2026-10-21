@@ -14,6 +14,7 @@ using Microsoft.Win32.SafeHandles;
 using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.DualShock4;
+using Nefarius.ViGEm.Client.Targets.Xbox360;
 
 namespace Glowstick
 {
@@ -50,6 +51,10 @@ namespace Glowstick
         SafeFileHandle hWrite, hRead;
         IVirtualGamepad pad;
         IDualShock4Controller ds4;
+        IXbox360Controller x360;
+        ViGEmClient vigem;
+        // What games should see this controller as: "Xbox" — a virtual Xbox 360, anything else — a virtual DualShock 4 (Pro).
+        public volatile string OutputKind = "DS4";
         Thread reader;
         volatile bool alive;
         volatile byte large, small;
@@ -127,17 +132,8 @@ namespace Glowstick
             if (hRead.IsInvalid) { hRead.Dispose(); hRead = null; return false; }
             Native.HidD_SetNumInputBuffers(hRead, 2);   // don't pile up old reports if we ever fall behind
 
-            try
-            {
-                if (client != null)
-                {
-                    ds4 = client.CreateDualShock4Controller();
-                    ds4.FeedbackReceived += OnFeedback;
-                    pad = ds4;
-                    pad.Connect();
-                }
-            }
-            catch (Exception e) { pad = null; ds4 = null; Log.Error("virtual pad", e); }   // no virtual pad, but keep reading the battery
+            vigem = client;
+            if (client != null) ConnectVirtual();
 
             alive = true;
             reader = new Thread(ReadLoop);
@@ -147,7 +143,88 @@ namespace Glowstick
             return true;
         }
 
+        // Creates the virtual pad of the chosen kind (DualShock 4 or Xbox 360). On failure — no virtual pad, battery still read.
+        void ConnectVirtual()
+        {
+            try
+            {
+                if (OutputKind == "Xbox")
+                {
+                    x360 = vigem.CreateXbox360Controller();
+                    x360.AutoSubmitReport = false;
+                    x360.FeedbackReceived += OnX360Feedback;
+                    pad = x360;
+                }
+                else
+                {
+                    ds4 = vigem.CreateDualShock4Controller();
+                    ds4.FeedbackReceived += OnFeedback;
+                    pad = ds4;
+                }
+                pad.Connect();
+            }
+            catch (Exception e) { pad = null; ds4 = null; x360 = null; Log.Error("virtual pad", e); }
+        }
+
+        void DisconnectVirtual()
+        {
+            try
+            {
+                if (ds4 != null) ds4.FeedbackReceived -= OnFeedback;
+                if (x360 != null) x360.FeedbackReceived -= OnX360Feedback;
+                if (pad != null) pad.Disconnect();
+            }
+            catch { }
+            pad = null; ds4 = null; x360 = null;
+        }
+
+        // Change what games see this controller as, live (recreates the virtual pad). No effect outside game mode.
+        public void SwitchOutput(string kind)
+        {
+            OutputKind = kind == "Xbox" ? "Xbox" : "DS4";
+            if (vigem == null) return;
+            lock (writeLock) { DisconnectVirtual(); ConnectVirtual(); }
+        }
+
         void OnFeedback(object sender, DualShock4FeedbackReceivedEventArgs e) { SetRumble(e.LargeMotor, e.SmallMotor); }
+        void OnX360Feedback(object sender, Xbox360FeedbackReceivedEventArgs e) { SetRumble(e.LargeMotor, e.SmallMotor); }
+
+        // Forward the (possibly hotkey-masked) DS4 report to the virtual Xbox 360: map buttons, sticks (Y inverted) and triggers
+        static void FeedX360(IXbox360Controller x, byte[] raw)
+        {
+            Pad p = Pad.Parse(raw);
+            Btn b = p.Buttons;
+            x.SetButtonState(Xbox360Button.A, (b & Btn.Cross) != 0);
+            x.SetButtonState(Xbox360Button.B, (b & Btn.Circle) != 0);
+            x.SetButtonState(Xbox360Button.X, (b & Btn.Square) != 0);
+            x.SetButtonState(Xbox360Button.Y, (b & Btn.Triangle) != 0);
+            x.SetButtonState(Xbox360Button.LeftShoulder, (b & Btn.L1) != 0);
+            x.SetButtonState(Xbox360Button.RightShoulder, (b & Btn.R1) != 0);
+            x.SetButtonState(Xbox360Button.Back, (b & Btn.Share) != 0);
+            x.SetButtonState(Xbox360Button.Start, (b & Btn.Options) != 0);
+            x.SetButtonState(Xbox360Button.LeftThumb, (b & Btn.L3) != 0);
+            x.SetButtonState(Xbox360Button.RightThumb, (b & Btn.R3) != 0);
+            x.SetButtonState(Xbox360Button.Guide, (b & Btn.PS) != 0);
+            x.SetButtonState(Xbox360Button.Up, (b & Btn.Up) != 0);
+            x.SetButtonState(Xbox360Button.Down, (b & Btn.Down) != 0);
+            x.SetButtonState(Xbox360Button.Left, (b & Btn.Left) != 0);
+            x.SetButtonState(Xbox360Button.Right, (b & Btn.Right) != 0);
+            x.SetAxisValue(Xbox360Axis.LeftThumbX, Axis(p.LX, false));
+            x.SetAxisValue(Xbox360Axis.LeftThumbY, Axis(p.LY, true));
+            x.SetAxisValue(Xbox360Axis.RightThumbX, Axis(p.RX, false));
+            x.SetAxisValue(Xbox360Axis.RightThumbY, Axis(p.RY, true));
+            x.SetSliderValue(Xbox360Slider.LeftTrigger, p.L2);
+            x.SetSliderValue(Xbox360Slider.RightTrigger, p.R2);
+            x.SubmitReport();
+        }
+
+        // Stick byte 0..255 (128 = center) → Xbox short; invert — the Y axes (DS4 up = 0, Xbox up = +)
+        static short Axis(byte v, bool invert)
+        {
+            int s = (v - 128) * 257;
+            if (invert) s = -s;
+            return (short)Math.Max(-32768, Math.Min(32767, s));
+        }
 
         void SetRumble(byte l, byte s)
         {
@@ -188,7 +265,13 @@ namespace Glowstick
                 Btn btn = Pad.ReadButtons(raw);
                 byte[] send = raw;
                 if (Engine.Hotkeys && Hotkeys(btn, now) && pad != null) send = Masked(raw, now);
-                try { if (ds4 != null) ds4.SubmitRawReport(send); } catch { }
+                try
+                {
+                    IDualShock4Controller d = ds4; IXbox360Controller x = x360;
+                    if (d != null) d.SubmitRawReport(send);
+                    else if (x != null) FeedX360(x, send);
+                }
+                catch { }
                 Interlocked.Increment(ref reports);
 
                 // Below — everything that must not delay forwarding
@@ -402,16 +485,7 @@ namespace Glowstick
             if (hRead != null) { Native.CancelIoEx(hRead, IntPtr.Zero); }
             if (reader != null) reader.Join(500);
             if (hRead != null) hRead.Dispose();
-            if (pad != null)
-            {
-                try
-                {
-                    if (ds4 != null) ds4.FeedbackReceived -= OnFeedback;
-                    pad.Disconnect();
-                }
-                catch { }
-                pad = null; ds4 = null;
-            }
+            if (pad != null) DisconnectVirtual();
             lock (writeLock) { hWrite.Dispose(); }
         }
     }
