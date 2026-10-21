@@ -238,8 +238,17 @@ namespace Glowstick
         public void SetTriggers(byte[] left, byte[] right)
         {
             if (!DualSense) return;
+            if (SameBytes(trigL, left) && SameBytes(trigR, right)) return;   // unchanged — don't re-send (a preset calls this every frame)
             trigL = left; trigR = right;
             if (LR >= 0) Send(LR, LG, LB);
+        }
+
+        static bool SameBytes(byte[] a, byte[] b)
+        {
+            if (ReferenceEquals(a, b)) return true;
+            if (a == null || b == null || a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return false;
+            return true;
         }
 
         void ReadLoop()
