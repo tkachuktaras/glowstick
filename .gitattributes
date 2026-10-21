@@ -1,0 +1,10 @@
+* text=auto
+
+# Windows scripts and project files — always CRLF
+*.ps1      text eol=crlf
+*.cs       text eol=crlf
+*.manifest text eol=crlf
+
+*.dll binary
+*.ico binary
+*.exe binary

@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.9.0.schema.json
+PackageIdentifier: tkachuktaras.Glowstick
+PackageVersion: 1.0.0
+PackageLocale: en-US
+Publisher: Glowstick contributors
+PublisherUrl: https://github.com/tkachuktaras/glowstick
+PublisherSupportUrl: https://github.com/tkachuktaras/glowstick/issues
+PackageName: Glowstick
+PackageUrl: https://github.com/tkachuktaras/glowstick
+License: GPL-3.0-or-later
+LicenseUrl: https://github.com/tkachuktaras/glowstick/blob/main/LICENSE
+ShortDescription: Light bar control for DualShock 4 and DualSense controllers
+Description: |-
+  Glowstick controls the light bar of DualShock 4 and DualSense controllers on Windows — any number at once.
+  Colors, animations, live presets that react to music, the screen and battery, your own presets,
+  per-controller settings and no conflicts with games.
+Moniker: glowstick
+Tags:
+  - dualshock
+  - dualshock4
+  - dualsense
+  - ps4
+  - ps5
+  - controller
+  - gamepad
+  - lightbar
+  - rgb
+ReleaseNotesUrl: https://github.com/tkachuktaras/glowstick/releases/tag/v1.0.0
+ManifestType: defaultLocale
+ManifestVersion: 1.9.0

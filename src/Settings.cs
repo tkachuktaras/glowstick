@@ -1,0 +1,135 @@
+// Settings in %APPDATA%\Glowstick\settings.json.
+// First start after the rename: settings.json is copied from the old %APPDATA%\DS4Colors folder;
+// built-in preset names that old versions stored in Ukrainian are converted to the current ones (PresetLib.Migrate).
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Globalization;
+using System.IO;
+using System.Text;
+using System.Web.Script.Serialization;
+
+namespace Glowstick
+{
+    internal static class Settings
+    {
+        static readonly string AppData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        public static readonly string Dir = Path.Combine(AppData, "Glowstick");
+        public static readonly string OldDir = Path.Combine(AppData, "DS4Colors");
+        static readonly string FilePath = Path.Combine(Dir, "settings.json");
+
+        public static string StartPreset = "Red + Blue";
+        public static bool FirstRun;   // there was no settings.json at start — the first-run setup is shown
+        static bool loaded;   // until loaded — don't save, so the file isn't overwritten with defaults
+
+        public static void Load()
+        {
+            try
+            {
+                string oldFile = Path.Combine(OldDir, "settings.json");
+                if (!File.Exists(FilePath) && File.Exists(oldFile))
+                {
+                    Directory.CreateDirectory(Dir);
+                    File.Copy(oldFile, FilePath);
+                }
+                if (!File.Exists(FilePath)) { FirstRun = true; Lang.Init(""); return; }
+                Dictionary<string, object> s = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(FilePath, Encoding.UTF8));
+                loadedRaw = s;
+                object v;
+                Lang.Init(s.TryGetValue("Language", out v) ? v as string : "");
+                if (s.TryGetValue("Preset", out v) && v is string) StartPreset = (string)v;
+                if (s.TryGetValue("Brightness", out v)) Engine.Brightness = Convert.ToDouble(v);
+                if (s.TryGetValue("Speed", out v)) Engine.Speed = Convert.ToDouble(v);
+                if (s.TryGetValue("BtPollMs", out v)) Engine.BtPollMs = Math.Max(0, Math.Min(16, Convert.ToInt32(v)));
+                if (s.TryGetValue("NotifyFlash", out v)) Engine.NotifyFlash = Convert.ToBoolean(v);
+                if (s.TryGetValue("Hotkeys", out v)) Engine.Hotkeys = Convert.ToBoolean(v);
+                if (s.TryGetValue("HotkeyMap", out v)) HotkeyMap.Load(v);
+                if (s.TryGetValue("TouchMouse", out v)) Engine.TouchMouse = Convert.ToBoolean(v);
+                if (s.TryGetValue("TouchSens", out v)) Engine.TouchSens = Math.Max(0.2, Math.Min(4, Convert.ToDouble(v)));
+                if (s.TryGetValue("IdleDimMin", out v)) Engine.IdleDimMin = Math.Max(0, Convert.ToInt32(v));
+                if (s.TryGetValue("IdleOffMin", out v)) Engine.IdleOffMin = Math.Max(0, Convert.ToInt32(v));
+                if (s.TryGetValue("PlayerLeds", out v)) Controller.PlayerLedsOn = Convert.ToBoolean(v);
+                if (s.TryGetValue("CheckUpdates", out v)) Updater.Enabled = Convert.ToBoolean(v);
+                DateTime last;
+                if (s.TryGetValue("LastUpdateCheck", out v) && v is string &&
+                    DateTime.TryParse((string)v, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out last)) Updater.LastCheck = last;
+                License.Load(s);   // the Pro key (also in the free build — it downloads Pro with it)
+                if (Pro.Load != null) Pro.Load(s);   // custom presets, game profiles, API — the Pro module's part
+                StartPreset = PresetLib.Migrate(StartPreset);
+                lock (Engine.Lock)
+                {
+                    if (s.TryGetValue("Order", out v) && v is IEnumerable)
+                        foreach (object o in (IEnumerable)v) if (o is string && !Engine.Order.Contains((string)o)) Engine.Order.Add((string)o);
+                    if (s.TryGetValue("Pads", out v) && v is Dictionary<string, object>)
+                        foreach (KeyValuePair<string, object> kv in (Dictionary<string, object>)v)
+                        {
+                            Dictionary<string, object> d = kv.Value as Dictionary<string, object>;
+                            if (d == null) continue;
+                            PadConfig c = new PadConfig();
+                            if (d.TryGetValue("Name", out v) && v is string) c.Name = (string)v;
+                            if (d.TryGetValue("Preset", out v) && v is string) c.Preset = PresetLib.Migrate((string)v);
+                            Engine.Pads[kv.Key] = c;
+                        }
+                }
+            }
+            catch (Exception e) { Log.Error("settings load", e); if (Lang.Code == "en" && Lang.Setting == "") Lang.Init(""); }
+            finally { loaded = true; }
+        }
+
+
+        static readonly object saveLock = new object();
+        // What was read: keys this build doesn't know (the Pro module's, when the free build runs) are written back untouched,
+        // so switching between the free and the Pro version loses nothing
+        static Dictionary<string, object> loadedRaw;
+
+        static string CurrentPreset()
+        {
+            List<Preset> ps = Engine.Presets;
+            return ps[Math.Max(0, Math.Min(Engine.PresetIndex, ps.Count - 1))].Name;
+        }
+
+        // Called both from the window and from the light bar thread (hotkeys)
+        public static void Save()
+        {
+            if (!loaded) return;
+            lock (saveLock) try
+            {
+                Directory.CreateDirectory(Dir);
+                Dictionary<string, object> s = loadedRaw != null ? new Dictionary<string, object>(loadedRaw) : new Dictionary<string, object>();
+                s["Language"] = Lang.Setting;
+                s["Preset"] = Pro.SavedPreset != null ? Pro.SavedPreset() : CurrentPreset();   // during a game profile — what was there before it
+                s["Brightness"] = Engine.Brightness;
+                s["Speed"] = Engine.Speed;
+                s.Remove("GameMode"); s.Remove("VirtualPad");   // game mode is always on, the virtual pad is always a DS4
+                s["BtPollMs"] = Engine.BtPollMs;
+                s["NotifyFlash"] = Engine.NotifyFlash;
+                s["Hotkeys"] = Engine.Hotkeys;
+                s["HotkeyMap"] = HotkeyMap.Save();
+                s["TouchMouse"] = Engine.TouchMouse;
+                s["TouchSens"] = Engine.TouchSens;
+                s["IdleDimMin"] = Engine.IdleDimMin;
+                s["IdleOffMin"] = Engine.IdleOffMin;
+                s["PlayerLeds"] = Controller.PlayerLedsOn;
+                s["CheckUpdates"] = Updater.Enabled;
+                s["LastUpdateCheck"] = Updater.LastCheck.ToString("o", CultureInfo.InvariantCulture);
+                License.Save(s);
+                if (Pro.Save != null) Pro.Save(s);
+                lock (Engine.Lock)
+                {
+                    s["Order"] = new List<string>(Engine.Order);
+                    Dictionary<string, object> pads = new Dictionary<string, object>();
+                    foreach (KeyValuePair<string, PadConfig> kv in Engine.Pads)
+                        if (kv.Value.Name != "" || kv.Value.Preset != "")
+                            pads[kv.Key] = new Dictionary<string, object> { { "Name", kv.Value.Name }, { "Preset", kv.Value.Preset } };
+                    s["Pads"] = pads;
+                }
+                File.WriteAllText(FilePath, new JavaScriptSerializer().Serialize(s), new UTF8Encoding(false));
+            }
+            catch (Exception e) { Log.Error("settings save", e); }
+        }
+
+        public static string ToHex(Rgb rgb) { Color c = rgb.ToColor(); return string.Format("#{0:X2}{1:X2}{2:X2}", c.R, c.G, c.B); }
+        public static Rgb FromHex(string hex) { return Rgb.FromColor(ColorTranslator.FromHtml(hex)); }
+    }
+}

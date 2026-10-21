@@ -1,0 +1,30 @@
+{
+    "version": "1.0.0",
+    "description": "Light bar control for DualShock 4 and DualSense controllers",
+    "homepage": "https://github.com/tkachuktaras/glowstick",
+    "license": "GPL-3.0-or-later",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/tkachuktaras/glowstick/releases/download/v1.0.0/Glowstick.exe",
+            "hash": "29d9822d90bee62d9fa5a6b9f79d3cfa81cf8730605d9246b8337a9975181104"
+        }
+    },
+    "bin": "Glowstick.exe",
+    "shortcuts": [
+        [
+            "Glowstick.exe",
+            "Glowstick"
+        ]
+    ],
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/tkachuktaras/glowstick/releases/download/v$version/Glowstick.exe"
+            }
+        },
+        "hash": {
+            "url": "$baseurl/SHA256.txt"
+        }
+    }
+}

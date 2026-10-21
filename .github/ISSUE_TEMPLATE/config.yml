@@ -1,0 +1,7 @@
+# Shown on the "New issue" screen: the two templates below plus these links. blank_issues_enabled:false hides the
+# "open a blank issue" option so reports keep their structure.
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & ideas (Discussions)
+    url: https://github.com/tkachuktaras/glowstick/discussions
+    about: Ask a question, share a preset, or talk through an idea before filing it as an issue.

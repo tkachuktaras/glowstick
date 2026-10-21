@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.9.0.schema.json
+PackageIdentifier: tkachuktaras.Glowstick
+PackageVersion: 1.0.0
+InstallerType: portable
+Commands:
+  - glowstick
+ReleaseDate: 2026-10-20
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/tkachuktaras/glowstick/releases/download/v1.0.0/Glowstick.exe
+    InstallerSha256: 29D9822D90BEE62D9FA5A6B9F79D3CFA81CF8730605D9246B8337A9975181104
+ManifestType: installer
+ManifestVersion: 1.9.0
