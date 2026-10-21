@@ -42,6 +42,7 @@ namespace Glowstick
         readonly DispatcherTimer rumbleOff = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         readonly TextBlock rate = new TextBlock(), battery = new TextBlock(), mode = new TextBlock(), motion = new TextBlock();
         readonly StackPanel bottom = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
+        readonly StackPanel trigRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
         readonly Grid stats = new Grid { Margin = new Thickness(0, 10, 0, 0) };
         Border card;
         Controller[] list = new Controller[0];
@@ -66,6 +67,15 @@ namespace Glowstick
             bottom.Children.Add(bat);
             DockPanel.SetDock(bottom, Dock.Bottom);
             root.Children.Add(bottom);
+
+            // DualSense adaptive triggers (shown enabled only for a DualSense)
+            trigRow.Children.Add(new TextBlock { Text = Lang.T("DualSense triggers:"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
+            trigRow.Children.Add(Trig(Lang.T("Off"), DsTrigger.Off));
+            trigRow.Children.Add(Trig(Lang.T("Resistance"), DsTrigger.Resistance(0x20, 0xB0)));
+            trigRow.Children.Add(Trig(Lang.T("Weapon"), DsTrigger.Weapon(0x30, 0x70, 0xD0)));
+            trigRow.Children.Add(Trig(Lang.T("Vibration"), DsTrigger.Vibration(0x10, 0xC0, 0x28)));
+            DockPanel.SetDock(trigRow, Dock.Bottom);
+            root.Children.Add(trigRow);
 
             // Numbers under the drawing: three small cards and a wide one with the motion sensors and raw axes
             for (int k = 0; k < 4; k++) stats.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(k < 3 ? 1 : 2.4, GridUnitType.Star) });
@@ -100,6 +110,13 @@ namespace Glowstick
             p.Children.Add(value);
             Border b = new Border { Style = Theme.Style("CardBox"), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(col == 0 ? 0 : 8, 0, 0, 0), Child = p };
             Grid.SetColumn(b, col);
+            return b;
+        }
+
+        Button Trig(string text, byte[] effect)
+        {
+            Button b = new Button { Content = text, Margin = new Thickness(0, 0, 8, 0) };
+            b.Click += (s, e) => { Controller c = Selected(); if (c != null) c.SetTriggers(effect, effect); };
             return b;
         }
 
@@ -160,6 +177,9 @@ namespace Glowstick
                 picker.Opacity = bottom.Opacity = stats.Opacity = any ? 1 : 0.4;
                 card.Opacity = any ? 1 : 0.6;
             }
+            // Triggers only make sense on a DualSense
+            bool ds = c != null && c.DualSense;
+            if (trigRow.IsEnabled != ds) { trigRow.IsEnabled = ds; trigRow.Opacity = ds ? 1 : 0.4; }
         }
 
         void ShowNumbers(Controller c)

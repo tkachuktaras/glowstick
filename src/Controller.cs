@@ -58,6 +58,7 @@ namespace Glowstick
         Thread reader;
         volatile bool alive;
         volatile byte large, small;
+        volatile byte[] trigL, trigR;   // DualSense adaptive-trigger FFB (11 bytes each) or null — no effect
         volatile bool rumbleTest;
         readonly object writeLock = new object();
         readonly byte[] outBuf;
@@ -231,6 +232,14 @@ namespace Glowstick
             if (l == large && s == small) return;
             large = l; small = s;
             if (LR >= 0) Send(LR, LG, LB);   // rumble goes out immediately, without waiting for an animation frame
+        }
+
+        // DualSense adaptive triggers: 11-byte FFB effects for L2 / R2 (null — no effect). Sent out right away. DualSense only.
+        public void SetTriggers(byte[] left, byte[] right)
+        {
+            if (!DualSense) return;
+            trigL = left; trigR = right;
+            if (LR >= 0) Send(LR, LG, LB);
         }
 
         void ReadLoop()
@@ -469,6 +478,9 @@ namespace Glowstick
             buf[o] = (byte)(Virtual || rumbleTest ? 0x03 : 0x00);   // compatible rumble + motor select
             buf[o + 1] = (byte)(0x04 | (PlayerLedsOn ? 0x10 : 0));  // light bar, player LEDs
             buf[o + 2] = small; buf[o + 3] = large;
+            byte[] tr = trigR, tl = trigL;                          // adaptive triggers: ValidFlag0 bit2/bit3, FFB at o+10 / o+21
+            if (tr != null) { buf[o] |= 0x04; Array.Copy(tr, 0, buf, o + 10, 11); }
+            if (tl != null) { buf[o] |= 0x08; Array.Copy(tl, 0, buf, o + 21, 11); }
             if (!ds5Released) { buf[o + 38] = 0x02; buf[o + 41] = 0x02; ds5Released = true; }
             int p = Player;
             buf[o + 43] = PlayerLedsOn && p > 0 ? PlayerLeds[Math.Min(p, PlayerLeds.Length) - 1] : (byte)0;
