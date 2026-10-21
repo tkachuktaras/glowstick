@@ -38,6 +38,7 @@ namespace Glowstick
         const string Solid = "Solid colors";
         const string Anim = "Animations";
         const string Grads = "Gradients";
+        const string WinCat = "Windows";
         const string LiveCat = "Live (react to game & PC)";
 
         static Rgb H(int h) { return Rgb.Hex(h); }
@@ -160,6 +161,10 @@ namespace Glowstick
                 double k = 0.65 * Noise(t * 7, i * 3) + 0.35 * Noise(t * 19, i * 3 + 1);
                 return Rgb.Lerp(H(0xFF1500), H(0xFF9000), k).Mul(0.5 + 0.5 * k);
             });
+
+            // --- Windows colors (free, live): follow the Windows accent color or the wallpaper ---
+            add(WinCat, "Windows accent", (t, i, n) => Live.Accent());
+            add(WinCat, "Windows wallpaper", (t, i, n) => Live.Wallpaper());
 
             pro = true;
             int free = L.Count;

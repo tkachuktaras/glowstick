@@ -4,8 +4,10 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 namespace Glowstick
 {
@@ -145,6 +147,112 @@ namespace Glowstick
             }
             catch { lock (screenLock) screenThread = null; }
         }
+
+        // ---------- Windows accent color ----------
+        static double accentAt;
+        static Rgb accent = new Rgb(0, 120, 215);   // default Windows blue until the first read
+
+        // The current Windows accent color (HKCU\…\DWM\AccentColor is 0xAABBGGRR). Re-read at most once a second.
+        public static Rgb Accent()
+        {
+            double now = clock.Elapsed.TotalSeconds;
+            if (now - accentAt > 1)
+            {
+                accentAt = now;
+                try
+                {
+                    using (RegistryKey k = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\DWM"))
+                    {
+                        object v = k == null ? null : k.GetValue("AccentColor");
+                        if (v is int)
+                        {
+                            int abgr = (int)v;
+                            accent = new Rgb(abgr & 0xFF, (abgr >> 8) & 0xFF, (abgr >> 16) & 0xFF);
+                        }
+                    }
+                }
+                catch { }
+            }
+            return accent;
+        }
+
+        // ---------- wallpaper dominant color ----------
+        [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern int SystemParametersInfo(int action, int param, StringBuilder vparam, int init);
+
+        static Thread wallThread;
+        static double wallWanted;
+        static Rgb wall = new Rgb(0, 0, 0);
+        static readonly object wallLock = new object();
+
+        // The wallpaper's dominant color (like Screen(), but from the desktop image). The worker lives while it's asked for.
+        public static Rgb Wallpaper()
+        {
+            lock (wallLock)
+            {
+                wallWanted = clock.Elapsed.TotalSeconds;
+                if (wallThread == null)
+                {
+                    wallThread = new Thread(WallLoop) { IsBackground = true, Name = "DS4 wallpaper", Priority = ThreadPriority.BelowNormal };
+                    wallThread.Start();
+                }
+                return wall;
+            }
+        }
+
+        static void WallLoop()
+        {
+            Rgb smooth = wall, cached = wall;
+            string lastPath = null;
+            try
+            {
+                while (true)
+                {
+                    lock (wallLock)
+                        if (clock.Elapsed.TotalSeconds - wallWanted > 2) { wallThread = null; return; }
+                    try
+                    {
+                        StringBuilder sb = new StringBuilder(600);
+                        SystemParametersInfo(0x0073 /* SPI_GETDESKWALLPAPER */, sb.Capacity, sb, 0);
+                        string path = sb.ToString();
+                        if (path != lastPath) { lastPath = path; cached = ComputeWall(path); }
+                    }
+                    catch { }
+                    smooth = Rgb.Lerp(smooth, cached, 0.3);
+                    lock (wallLock) wall = smooth;
+                    Thread.Sleep(200);
+                }
+            }
+            catch { lock (wallLock) wallThread = null; }
+        }
+
+        // Average of the wallpaper image, saturated like the screen one; keeps the last color on failure (solid-color desktop, etc.)
+        static Rgb ComputeWall(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !System.IO.File.Exists(path)) return cachedWall;
+            try
+            {
+                using (System.Drawing.Bitmap src = new System.Drawing.Bitmap(path))
+                using (System.Drawing.Bitmap small = new System.Drawing.Bitmap(48, 27))
+                using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(small))
+                {
+                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBilinear;
+                    g.DrawImage(src, 0, 0, 48, 27);
+                    double r = 0, gg = 0, b = 0, wsum = 0;
+                    for (int y = 0; y < 27; y++)
+                        for (int x = 0; x < 48; x++)
+                        {
+                            System.Drawing.Color p = small.GetPixel(x, y);
+                            int mx = Math.Max(p.R, Math.Max(p.G, p.B)), mn = Math.Min(p.R, Math.Min(p.G, p.B));
+                            double w = 0.15 + (mx - mn) / 255.0 * 2 + mx / 255.0 * 0.3;
+                            r += p.R * w; gg += p.G * w; b += p.B * w; wsum += w;
+                        }
+                    cachedWall = Vivid(new Rgb(r / wsum, gg / wsum, b / wsum));
+                }
+            }
+            catch { }
+            return cachedWall;
+        }
+        static Rgb cachedWall = new Rgb(0, 120, 215);
 
         // Saturation ×1.6, and brightness is lifted so the light bar doesn't go fully dark in dark scenes
         static Rgb Vivid(Rgb c)
