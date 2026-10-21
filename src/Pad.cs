@@ -35,6 +35,19 @@ namespace Glowstick
             return b;
         }
 
+        // Write a button set back into a DS4 report (bytes 4-6) — the inverse of ReadButtons, for Pro remapping.
+        // Only the button bytes are touched; the counter bits in byte 6 are kept.
+        public static void WriteButtons(byte[] raw, Btn b)
+        {
+            bool up = (b & Btn.Up) != 0, dn = (b & Btn.Down) != 0, lf = (b & Btn.Left) != 0, rt = (b & Btn.Right) != 0;
+            int hat = 8;   // 8 — released
+            if (up && rt) hat = 1; else if (rt && dn) hat = 3; else if (dn && lf) hat = 5; else if (lf && up) hat = 7;
+            else if (up) hat = 0; else if (rt) hat = 2; else if (dn) hat = 4; else if (lf) hat = 6;
+            raw[4] = (byte)(((uint)b & 0xF0) | (uint)hat);        // face buttons (high nibble) + d-pad hat (low nibble)
+            raw[5] = (byte)(((uint)b >> 8) & 0xFF);               // L1 R1 L2 R2 Share Options L3 R3
+            raw[6] = (byte)((raw[6] & ~0x03) | (int)(((uint)b >> 16) & 0x03));   // PS, touchpad click (keep the counter)
+        }
+
         public static Pad Parse(byte[] raw)
         {
             Pad p = new Pad();
