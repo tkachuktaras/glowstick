@@ -54,7 +54,6 @@ namespace Glowstick
 
         static readonly List<Controller> Devices = new List<Controller>();   // sorted by Order
         internal static readonly object Lock = new object();
-        static readonly string[] Ds4Pids = { "05c4", "09cc", "0ba0" };
         static Thread worker;
         static volatile bool running, rescanRequested, modeDirty;
         static double T;
@@ -445,7 +444,7 @@ namespace Glowstick
         {
             p = p.ToLowerInvariant();
             if (!p.Contains("vid_054c") && !p.Contains("vid&0002054c")) return false;
-            foreach (string id in Ds4Pids) if (p.Contains("pid_" + id) || p.Contains("pid&" + id)) return true;
+            foreach (string id in DualShock4Wire.Pids) if (p.Contains("pid_" + id) || p.Contains("pid&" + id)) return true;
             foreach (string id in Controller.DualSensePids) if (p.Contains("pid_" + id) || p.Contains("pid&" + id)) return true;
             return false;
         }

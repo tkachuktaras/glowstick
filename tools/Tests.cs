@@ -59,6 +59,7 @@ namespace Glowstick
             Hotkeys();
             TouchMouse();
             Hardening();
+            PadPieces();
             ProServerAnswers();
             Sta(UiTests);
             Console.WriteLine(string.Format("{0} passed, {1} failed", passed, failed));
@@ -102,7 +103,7 @@ namespace Glowstick
             b[o + 36] = 0x80;                                         // finger 2 — none
             b[o + 52] = 0x15;                                         // charging, level 5
             int counter = 0, pct; bool chg;
-            Controller.Ds5ToDs4(b, o, raw, ref counter, out pct, out chg);
+            DualSenseWire.ToDs4(b, o, raw, ref counter, out pct, out chg);
             Pad p = Pad.Parse(raw);
             Check(p.LX == 10 && p.LY == 20 && p.RX == 30 && p.RY == 40, "DS5 sticks");
             Check(p.L2 == 200 && p.R2 == 100, "DS5 triggers");
@@ -407,6 +408,45 @@ namespace Glowstick
         }
 
         // ---------- PS hotkeys ----------
+        // What Controller is made of: PS hotkeys, the output packets, the Xbox stick mapping
+        static void PadPieces()
+        {
+            HotkeyMap.Reset();
+            List<HotAction> fired = new List<HotAction>();
+            PsHotkeys hk = new PsHotkeys(a => fired.Add(a));
+            byte[] raw = new byte[63];
+            Pad.WriteButtons(raw, Btn.PS);
+            Check(hk.Update(Btn.PS, 0) && (hk.Mask(raw, 0)[6] & 0x01) == 0, "PS held: hidden from the game");
+            Check(hk.Update(Btn.PS | Btn.Right, 50) && fired.Count == 1 && fired[0] == HotAction.NextPreset, "PS + → fires the next preset");
+            byte[] masked = hk.Mask(raw, 50);
+            Check((masked[4] & 0x0F) == 0x08, "… and the d-pad doesn't reach the game");
+            hk.Update(Btn.None, 100);
+            Check(!hk.Update(Btn.None, 120) || (hk.Mask(raw, 120)[6] & 0x01) == 0, "released after a combo: no PS tap for the game");
+
+            PsHotkeys tap = new PsHotkeys(a => { });
+            tap.Update(Btn.PS, 0);
+            Check(tap.Update(Btn.None, 80) && (tap.Mask(new byte[63], 80)[6] & 0x01) != 0, "a short PS alone: the game gets a PS tap");
+            Check(!tap.Update(Btn.None, 300), "… that ends");
+            PsHotkeys hold = new PsHotkeys(a => { });
+            hold.Update(Btn.PS, 0);
+            Check(!hold.Update(Btn.PS, 500), "PS held 0.5 s without a combo goes to the game (Steam long press)");
+
+            byte[] usb = new byte[32];
+            int len = DualShock4Wire.Output(usb, false, 32, 0, true, 10, 20, 255, 128, 0);
+            Check(len == 32 && usb[0] == 0x05 && usb[1] == 0x07 && usb[4] == 10 && usb[5] == 20 && usb[6] == 255 && usb[7] == 128 && usb[8] == 0, "DS4 USB packet: rumble + color");
+            byte[] bt = new byte[78];
+            DualShock4Wire.Output(bt, true, 78, 4, false, 0, 0, 1, 2, 3);
+            uint crc = Crc32.Bt(bt, 74);
+            Check(bt[0] == 0x11 && bt[1] == (0xC0 | 4) && bt[3] == 0x06 && bt[8] == 1 && bt[74] == (byte)crc && bt[77] == (byte)(crc >> 24), "DS4 BT packet: no rumble outside game mode, CRC at the end");
+            byte[] ds = new byte[78];
+            int seq = 0; bool released = false;
+            DualSenseWire.Output(ds, true, 78, ref seq, ref released, true, 5, 6, null, new byte[11], true, 2, 9, 8, 7);
+            Check(ds[0] == 0x31 && seq == 1 && released && ds[3] == (0x03 | 0x04) && ds[3 + 41] == 0x02 && ds[3 + 43] == 0x0A && ds[3 + 44] == 9, "DualSense BT packet: rumble, trigger, connect animation off, player 2, color");
+
+            Check(VirtualPad.Axis(0, false) == -32768 && VirtualPad.Axis(255, false) == 32767 && VirtualPad.Axis(128, false) == 0, "Xbox stick: both full deflections reach the maximum");
+            Check(VirtualPad.Axis(0, true) == 32767 && VirtualPad.Axis(255, true) == -32768 && VirtualPad.Axis(128, true) == 0, "Xbox stick: Y inverted, full both ways");
+        }
+
         // Security / robustness pieces: the protected copy for the elevated tasks, unelevated launches, scan codes
         static void Hardening()
         {
