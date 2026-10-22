@@ -14,15 +14,16 @@ namespace Glowstick
             return percent < 0 ? BatteryLevel.Unknown : percent < 25 ? BatteryLevel.Critical : percent < 50 ? BatteryLevel.Low : BatteryLevel.Ok;
         }
 
-        // Time left as "~H:MM" (the same format as the tray tooltip); "" — no estimate, or less than a minute (no "~0:00")
+        // Battery time left with its units: "~4 h 25 min", "~2 h", "~40 min" (translated); "" — no estimate, or under a minute
         public static string Hours(double h)
         {
             int total = h > 0 ? (int)Math.Round(h * 60) : 0;
             if (total < 1) return "";
-            return string.Format("~{0}:{1:00}", total / 60, total % 60);
+            int hh = total / 60, mm = total % 60;
+            return "~" + (hh == 0 ? Lang.F("{0} min", mm) : mm == 0 ? Lang.F("{0} h", hh) : Lang.F("{0} h {1:00} min", hh, mm));
         }
 
-        // Second line of a controller tile: "82% ⚡ · USB", "45% · BT · ~3:15", "BT"
+        // Second line of a controller tile: "82% ⚡ · USB", "45% · BT · ~3 h 15 min", "BT"
         public static string PadLine(ControllerInfo c)
         {
             string kind = c.Kind == "Bluetooth" ? "BT" : "USB";

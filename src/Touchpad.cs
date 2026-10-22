@@ -77,7 +77,8 @@ namespace Glowstick
         bool had1, had2, clickDown, clickRight, dragDown;
         byte id1;
         int x1, y1, scrollX, scrollY;
-        double sx, sy;                     // smoothed finger position (jitter compensation)
+        double sx, sy;                     // the filtered finger position
+        readonly OneEuro fx = new OneEuro(), fy = new OneEuro();
         double accX, accY, accWheel, accHWheel;
         // taps
         long touchStart, lastTapEnd = -100000, lastMs;
@@ -151,20 +152,21 @@ namespace Glowstick
                 }
                 else if (had1 && p.T1Id == id1)
                 {
-                    double nx = c.Jitter ? sx + (p.T1X - sx) * 0.5 : p.T1X, ny = c.Jitter ? sy + (p.T1Y - sy) * 0.5 : p.T1Y;
+                    // The finger position through a One Euro filter: steady when moving slowly, no lag when moving fast.
+                    // (No dead threshold: it made a slow finger stick and then jump.)
+                    double dts = dt / 1000.0;
+                    double nx = fx.Step(p.T1X, dts, c.Jitter ? 1.2 : 4.0, 0.004), ny = fy.Step(p.T1Y, dts, c.Jitter ? 1.2 : 4.0, 0.004);
                     double dx = nx - sx, dy = ny - sy;
                     sx = nx; sy = ny;
                     tapTravel += Math.Abs(p.T1X - x1) + Math.Abs(p.T1Y - y1);
-                    if (c.Jitter && Math.Abs(dx) < 0.75 && Math.Abs(dy) < 0.75) { dx = 0; dy = 0; }
-                    double speed = Math.Sqrt(dx * dx + dy * dy);
-                    double k = c.Sens * (c.Accel ? 0.35 + Math.Min(1.6, speed / 14) : 0.8);
+                    double k = c.Sens * (c.Accel ? Gain(Math.Sqrt(dx * dx + dy * dy) / dt) : 0.8);
                     double mx0 = dx * k * (c.InvertX ? -1 : 1), my0 = dy * k * (c.InvertY ? -1 : 1);
                     velX = velX * 0.6 + mx0 / dt * 0.4; velY = velY * 0.6 + my0 / dt * 0.4;
                     accX += mx0; accY += my0;
                     int mx = (int)accX, my = (int)accY;
                     if (mx != 0 || my != 0) { accX -= mx; accY -= my; Output(mx, my, 0, MOVE); }
                 }
-                else { accX = accY = 0; sx = p.T1X; sy = p.T1Y; velX = velY = 0; }
+                else { accX = accY = 0; sx = p.T1X; sy = p.T1Y; velX = velY = 0; fx.Reset(); fy.Reset(); fx.Step(p.T1X, 0.004, 1, 0); fy.Step(p.T1Y, 0.004, 1, 0); }
                 x1 = p.T1X; y1 = p.T1Y; id1 = p.T1Id; had1 = true;
             }
             else
@@ -172,6 +174,14 @@ namespace Glowstick
                 had1 = false;
                 if (gliding) Glide(c, dt);
             }
+        }
+
+        // Pointer acceleration from the finger speed (touchpad units per ms): a smooth curve from 0.45× (slow, precise)
+        // to 2× (fast, far) — no jumps between neighbouring speeds
+        internal static double Gain(double speed)
+        {
+            double t = Math.Max(0, Math.Min(1, (speed - 0.05) / 2.95));
+            return 0.45 + 1.55 * t * t * (3 - 2 * t);
         }
 
         void Glide(TouchConfig c, long dt)

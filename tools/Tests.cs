@@ -164,11 +164,11 @@ namespace Glowstick
         {
             Check(UiFormat.PadLine(new ControllerInfo { Battery = 82, Kind = "USB" }) == "82% · USB", "pad line USB");
             Check(UiFormat.PadLine(new ControllerInfo { Battery = 82, Charging = true, Kind = "USB", HoursLeft = 2 }) == "82% ⚡ · USB", "pad line charging");
-            Check(UiFormat.PadLine(new ControllerInfo { Battery = 45, Kind = "Bluetooth", HoursLeft = 3.25 }) == "45% · BT · ~3:15", "pad line hours");
+            Check(UiFormat.PadLine(new ControllerInfo { Battery = 45, Kind = "Bluetooth", HoursLeft = 3.25 }) == "45% · BT · ~3 h 15 min", "pad line hours");
             Check(UiFormat.PadLine(new ControllerInfo { Battery = -1, Kind = "Bluetooth" }) == "BT", "pad line unknown");
             Check(UiFormat.Hours(0) == "", "no hours");
-            Check(UiFormat.Hours(0.004) == "" && UiFormat.Hours(0.008) == "", "under a minute → no estimate, never ~0:00");
-            Check(UiFormat.Hours(0.02) == "~0:01" && UiFormat.Hours(1.999) == "~2:00", "rounding to minutes");
+            Check(UiFormat.Hours(0.004) == "" && UiFormat.Hours(0.008) == "", "under a minute → no estimate");
+            Check(UiFormat.Hours(0.02) == "~1 min" && UiFormat.Hours(1.999) == "~2 h" && UiFormat.Hours(4.42) == "~4 h 25 min", "battery time with its units");
             Check(UiFormat.PadLine(new ControllerInfo { Battery = 1, Kind = "Bluetooth", HoursLeft = 0.004 }) == "1% · BT", "pad line without ~0:00");
 
             // Preview animation time: a speed change doesn't jump, a long pause moves at most 0.2 s
@@ -275,7 +275,7 @@ namespace Glowstick
         static void TrayTooltip()
         {
             ControllerInfo[] one = { new ControllerInfo { Battery = 82, HoursLeft = 3.25 } };
-            Check(TrayText.Tooltip(one) == "Glowstick · 1: 82% ~3:15", "tray text one controller");
+            Check(TrayText.Tooltip(one) == "Glowstick · 1: 82% ~3 h 15 min", "tray text one controller");
             ControllerInfo[] many = Enumerable.Range(0, 8).Select(i => new ControllerInfo { Battery = 50 + i, Charging = i % 2 == 0, HoursLeft = 4 }).ToArray();
             Check(TrayText.Tooltip(many).Length <= 63, "tray text ≤ 63 chars with 8 controllers");
             Check(TrayText.Tooltip(new ControllerInfo[0]) == "Glowstick", "tray text no controllers");
@@ -527,6 +527,18 @@ namespace Glowstick
             int before = ev.Count;
             for (int k = 0; k < 10; k++) P(t, one(false, 580, 400), tb, now += 4);
             Check(ev.Count > before, "trackball: glides after lifting");
+
+            // Smoothness: a slow, steady finger moves the cursor steadily (no stick-and-jump); a still finger's wobble doesn't move it
+            ev.Clear(); t.Reset();
+            TouchConfig smooth = new TouchConfig();
+            int[] steps = new int[60];
+            for (int k = 0; k < 60; k++) { int before2 = ev.Count; P(t, one(true, 300 + k * 2, 400), smooth, now += 4); steps[k] = ev.Skip(before2).Where(e => e[3] == Touchpad.MOVE).Sum(e => e[0]); }
+            int moving = steps.Skip(20).Count(s => s > 0), jump = steps.Skip(20).Max();
+            Check(moving >= 30 && jump <= 3, "slow finger: the cursor moves steadily (" + moving + "/40 reports, biggest step " + jump + ")");
+            ev.Clear(); t.Reset();
+            for (int k = 0; k < 80; k++) P(t, one(true, 500 + (k % 2), 400 + (k % 3 == 0 ? 1 : 0)), smooth, now += 4);
+            Check(Math.Abs(ev.Where(e => e[3] == Touchpad.MOVE).Sum(e => e[0])) <= 2, "a resting finger's 1-unit wobble barely moves the cursor");
+            Check(Touchpad.Gain(0) < Touchpad.Gain(0.5) && Touchpad.Gain(0.5) < Touchpad.Gain(2) && Math.Abs(Touchpad.Gain(10) - 2) < 1e-9, "acceleration rises smoothly to 2×");
 
             TouchConfig r = TouchConfig.Load(new TouchConfig { Sens = 2.5, Trackball = true, InvertY = true, Friction = 0.3 }.Save());
             Check(r.Sens == 2.5 && r.Trackball && r.InvertY && r.Friction == 0.3, "touch settings round trip");

@@ -78,9 +78,15 @@ namespace Glowstick
             if (main == null)
             {
                 main = new MainWindow();
-                main.Closing += (s, e) => { if (life.Removing) e.Cancel = true; };   // the full removal must finish
                 MainWindow mine = main;
-                main.Closed += (s, e) => { if (main == mine) Exit(); };   // ✕ closes the app, as the classic window did (not a window replaced by ReloadWindow)
+                main.Closing += (s, e) =>
+                {
+                    if (life.Removing) { e.Cancel = true; return; }   // the full removal must finish
+                    // ✕ hides the window to the tray — Glowstick keeps lighting and mapping the controllers; Exit is in the tray
+                    // menu and in Settings. (Not while exiting / logging off, and not for a window replaced by ReloadWindow.)
+                    if (main == mine && !exiting) { e.Cancel = true; MinimizeToTray(); }
+                };
+                main.Closed += (s, e) => { if (main == mine) Exit(); };
             }
             main.Show();
             if (main.WindowState == WindowState.Minimized) main.WindowState = WindowState.Normal;
@@ -102,9 +108,13 @@ namespace Glowstick
             }
         }
 
+        static bool trayHinted;
+
         public static void MinimizeToTray()
         {
             if (main != null) main.Hide();
+            if (trayHinted) return;   // once per run — not on every ✕
+            trayHinted = true;
             tray.Balloon("Glowstick", Lang.T("Running in the tray. Double-click the icon to open."), ToolTipIcon.Info, null);
         }
 

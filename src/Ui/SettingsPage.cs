@@ -14,7 +14,6 @@ namespace Glowstick
     internal class SettingsPage : UserControl
     {
         readonly StackPanel page = new StackPanel { Margin = new Thickness(28, 20, 28, 28), MaxWidth = 820, HorizontalAlignment = HorizontalAlignment.Left };
-        CheckBox touch;
 
         public SettingsPage()
         {
@@ -48,14 +47,16 @@ namespace Glowstick
 
             CheckBox upd = Kit.Toggle(general, Lang.T("Check for updates once a day (GitHub Releases; nothing is downloaded by itself)"), Updater.Enabled, v => Updater.Enabled = v);
             upd.IsEnabled = Updater.Available;
-            StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-            Button check = new Button { Content = Lang.T("Check now"), IsEnabled = Updater.Available, Margin = new Thickness(0, 0, 8, 0) };
+            WrapPanel buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+            Button check = new Button { Content = Lang.T("Check now"), IsEnabled = Updater.Available, Margin = new Thickness(0, 0, 8, 8) };
             check.Click += (s, e) => UiApp.CheckUpdates(true);
-            Button log = new Button { Content = Lang.T("Open log folder"), ToolTip = Lang.T("log.txt — attach it to a bug report"), Margin = new Thickness(0, 0, 8, 0) };
+            Button log = new Button { Content = Lang.T("Open log folder"), ToolTip = Lang.T("log.txt — attach it to a bug report"), Margin = new Thickness(0, 0, 8, 8) };
             log.Click += (s, e) => { Directory.CreateDirectory(Settings.Dir); UiApp.OpenUrl(Settings.Dir); };
-            Button tray = new Button { Content = Lang.T("Minimize to tray") };
+            Button tray = new Button { Content = Lang.T("Minimize to tray"), Margin = new Thickness(0, 0, 8, 8) };
             tray.Click += (s, e) => UiApp.MinimizeToTray();
-            buttons.Children.Add(check); buttons.Children.Add(log); buttons.Children.Add(tray);
+            Button exit = new Button { Content = Lang.T("Exit"), Margin = new Thickness(0, 0, 8, 8), ToolTip = Lang.T("The ✕ of the window only hides it to the tray") };
+            exit.Click += (s, e) => UiApp.Exit();
+            buttons.Children.Add(check); buttons.Children.Add(log); buttons.Children.Add(tray); buttons.Children.Add(exit);
             general.Children.Add(buttons);
 
             // ---------- light bar ----------
@@ -67,13 +68,7 @@ namespace Glowstick
             // ---------- controller ----------
             StackPanel ctl = Section(Lang.T("Controller"));
             Minutes(ctl, Lang.T("Turn off a Bluetooth controller if it wasn't touched"), Engine.IdleOffMin, v => Engine.IdleOffMin = v);
-            Kit.Toggle(ctl, Lang.T("Hotkeys on the controller (hold PS and press):"), Engine.Hotkeys, v => Engine.Hotkeys = v);
-            ctl.Children.Add(HotkeyTable());
-            touch = Kit.Toggle(ctl, Lang.T("Touchpad as mouse: one finger — cursor, two fingers — scroll, click — left button (with two fingers — right).\nTurns itself off in fullscreen games."),
-                Engine.TouchMouse, v => Engine.TouchMouse = v);
-            StackPanel touchOpts = new StackPanel { Margin = new Thickness(50, 0, 0, 0) };
-            TouchSettings.Build(touchOpts, Engine.Touch);
-            ctl.Children.Add(touchOpts);
+            // The touchpad and the PS hotkeys are on the Input mapping page (ControlSettings)
 
             LicenseSettings.Add(this);   // the Pro key — in the free build too (it downloads Pro)
 
@@ -141,79 +136,6 @@ namespace Glowstick
             parent.Children.Add(row);
         }
 
-        // For each action: PS + a combo of buttons. Editing the combos is Pro — the free build shows the table locked,
-        // and a click leads to Settings → Glowstick Pro (where it already is).
-        FrameworkElement HotkeyTable()
-        {
-            string[] titles = { Lang.T("Previous preset"), Lang.T("Next preset"), Lang.T("Brighter"), Lang.T("Dimmer"),
-                                Lang.T("Show battery on the light bar"), Lang.T("Touchpad as mouse (on/off)"), Lang.T("Turn off a Bluetooth controller") };
-            bool pro = Pro.Unlocked;
-            StackPanel table = new StackPanel { Margin = new Thickness(50, 8, 0, 0) };
-            List<Button> picks = new List<Button>();
-            Action refresh = () =>
-            {
-                for (int k = 0; k < picks.Count; k++) picks[k].Content = "PS + " + HotkeyMap.ComboName(HotkeyMap.Get(HotkeyMap.Actions[k]));
-            };
-            foreach (HotAction a in HotkeyMap.Actions)
-            {
-                HotAction act = a;
-                Button pick = new Button { Width = 220, HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 4, 10, 4) };
-                if (pro) pick.Click += (s, e) => ComboPopup(pick, act, refresh);
-                picks.Add(pick);
-                FrameworkElement row = Kit.Row(new TextBlock { Text = titles[(int)a], VerticalAlignment = VerticalAlignment.Center,
-                    TextTrimming = TextTrimming.CharacterEllipsis }, pick, 260);
-                row.Margin = new Thickness(0, 0, 0, 6);
-                table.Children.Add(row);
-            }
-            refresh();
-            if (pro)
-            {
-                Button reset = new Button { Content = Lang.T("Reset hotkeys"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0) };
-                reset.Click += (s, e) => { HotkeyMap.Reset(); Settings.Save(); refresh(); };
-                table.Children.Add(reset);
-            }
-            table.Children.Add(new TextBlock { Style = Theme.Style("MutedText"), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap,
-                Text = pro ? Lang.T("Tap a combo to change it. These combos don't reach the game; a plain PS press does.")
-                           : Lang.T("Changing hotkeys is part of Glowstick Pro — any combo of buttons for any action. The free version uses these defaults.") });
-            if (pro) return table;
-
-            // Locked: the table is shown disabled, a 🔒 badge on it, a click leads to the Pro section
-            table.IsEnabled = false; table.Opacity = 0.55;
-            Grid wrap = new Grid();
-            wrap.Children.Add(table);
-            wrap.Children.Add(LockedPages.ToPro(new Border { Background = System.Windows.Media.Brushes.Transparent, ToolTip = Lang.T("Available in Glowstick Pro") }));
-            return wrap;
-        }
-
-        // A little popup with a toggle for every button: the pressed ones make the combo (none = off)
-        void ComboPopup(UIElement at, HotAction act, Action refresh)
-        {
-            WrapPanel chips = new WrapPanel { MaxWidth = 260, Margin = new Thickness(10) };
-            foreach (Btn b in HotkeyMap.Choices)
-            {
-                Btn btn = b;
-                ToggleButton t = new ToggleButton { Content = HotkeyMap.Name(b), Margin = new Thickness(0, 0, 6, 6), Padding = new Thickness(8, 3, 8, 3),
-                    IsChecked = (HotkeyMap.Get(act) & b) != 0 };
-                t.Click += (s, e) =>
-                {
-                    Btn combo = HotkeyMap.Get(act);
-                    combo = t.IsChecked == true ? combo | btn : combo & ~btn;
-                    HotkeyMap.Set(act, combo);
-                    Settings.Save();
-                    refresh();
-                };
-                chips.Children.Add(t);
-            }
-            Popup pop = new Popup { PlacementTarget = at, Placement = PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true };
-            pop.Child = new Border { Style = Theme.Style("CardBox"), Background = Theme.Brush("Card"), Child = chips };
-            pop.IsOpen = true;
-        }
-
-        // Touchpad mode is toggled by a hotkey too — follow it
-        public void OnTick()
-        {
-            bool t = Engine.TouchMouse;
-            if ((touch.IsChecked == true) != t) touch.IsChecked = t;
-        }
+        public void OnTick() { }
     }
 }

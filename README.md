@@ -9,7 +9,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/tkachuktaras/glowstick/build.yml?branch=main&style=flat-square)](https://github.com/tkachuktaras/glowstick/actions/workflows/build.yml)
 [![License: GPL-3.0](https://img.shields.io/github/license/tkachuktaras/glowstick?style=flat-square)](LICENSE)
 
-[**Download**](https://github.com/tkachuktaras/glowstick/releases/latest) · [Features](#features) · [How it works](#how-it-works) · [Building](#building)
+[**Download**](https://github.com/tkachuktaras/glowstick/releases/latest) · [Features](#features) · [How it works](#how-it-works) · [Roadmap](ROADMAP.md) · [Building](#building)
 
 <img src="assets/readme/demo.gif" alt="Two DualShock 4 controllers changing light bar colors with Glowstick" width="800">
 
