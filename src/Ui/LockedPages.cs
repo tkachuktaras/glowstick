@@ -50,7 +50,7 @@ namespace Glowstick
             badge.Margin = new Thickness(12, 0, 0, 10);
             head.Children.Add(badge);
             page.Children.Add(head);
-            page.Children.Add(new TextBlock { Text = Lang.T("While the game runs — its own preset. Quit the game — everything goes back."),
+            page.Children.Add(new TextBlock { Text = Lang.T("While the game runs — its own profile. Quit the game — everything goes back."),
                 Style = Theme.Style("MutedText"), FontSize = 13, Margin = new Thickness(0, -6, 0, 14), TextWrapping = TextWrapping.Wrap });
 
             StackPanel locked = new StackPanel { IsEnabled = false, Opacity = 0.55 };
@@ -60,12 +60,12 @@ namespace Glowstick
             locked.Children.Add(bar);
 
             StackPanel table = new StackPanel();
-            table.Children.Add(Columns(Head(Lang.T("Game (exe)")), Head(Lang.T("Preset"))));
-            string[][] examples = { new[] { "RocketLeague.exe", "Fire" }, new[] { "eldenring.exe", "Thunderstorm" } };
+            table.Children.Add(Columns(Head(Lang.T("Game (exe)")), Head(Lang.T("Profile"))));
+            string[][] examples = { new[] { "RocketLeague.exe", "Rocket League" }, new[] { "eldenring.exe", "Elden Ring" } };
             foreach (string[] ex in examples)
             {
                 ComboBox preset = new ComboBox();
-                preset.Items.Add(Lang.T(ex[1]));
+                preset.Items.Add(ex[1]);
                 preset.SelectedIndex = 0;
                 Grid row = Columns(new TextBox { Text = ex[0] }, preset);
                 row.Margin = new Thickness(0, 0, 0, 6);
@@ -90,17 +90,21 @@ namespace Glowstick
             return g;
         }
 
-        // Input mapping: what the page does (button remap, macros, sticks, gyro, touchpad per profile), locked
-        // Free build: the controller settings that are free (touchpad, hotkeys) work here; the Pro mapping is shown locked
+        // Profiles: the free build has one profile, Default — its free settings (light bar, touchpad, hotkeys, power) work here;
+        // more profiles and the input mapping are shown locked
         public static FrameworkElement Input(string title)
         {
             StackPanel page = new StackPanel { Margin = new Thickness(28, 20, 28, 28) };
             page.Children.Add(new TextBlock { Text = title, Style = Theme.Style("PageTitle") });
+            page.Children.Add(new TextBlock { Text = Lang.T("Everything about how a controller behaves. The free version has one profile — Default."),
+                Style = Theme.Style("MutedText"), FontSize = 13, Margin = new Thickness(0, -6, 0, 14), TextWrapping = TextWrapping.Wrap });
+            ControlSettings.Light(Kit.Card(page, Lang.T("Light bar")), Engine.Defaults, true);
             ControlSettings.Touchpad(Kit.Card(page, Lang.T("Touchpad")));
             ControlSettings.Hotkeys(Kit.Card(page, Lang.T("Hotkeys")));
+            ControlSettings.Power(Kit.Card(page, Lang.T("Controller")), Engine.Defaults, false);
 
             StackPanel head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 18, 0, 0) };
-            head.Children.Add(new TextBlock { Text = Lang.T("Input mapping"), Style = Theme.Style("Section"), Margin = new Thickness(0) });
+            head.Children.Add(new TextBlock { Text = Lang.T("More profiles and input mapping"), Style = Theme.Style("Section"), Margin = new Thickness(0) });
             head.Children.Add(Badge());
             page.Children.Add(head);
             page.Children.Add(new TextBlock { Text = Lang.T("Remap buttons, sticks, triggers, the touchpad and motion to other buttons, keys, the mouse or macros — with a profile for every game."),
@@ -109,6 +113,7 @@ namespace Glowstick
             StackPanel list = new StackPanel();
             string[] perks =
             {
+                Lang.T("Profiles for every controller and game: own preset, brightness, touchpad and mapping; import and export as files"),
                 Lang.T("Button remap with tap, hold, double tap, turbo and toggle; shift layers on any button"),
                 Lang.T("Macros with delays, key down / up, mouse and controller buttons — typed or recorded"),
                 Lang.T("Stick and trigger dead zones, response curves, mouse and flick stick"),

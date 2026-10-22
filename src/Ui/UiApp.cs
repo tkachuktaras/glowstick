@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using ToolTipIcon = System.Windows.Forms.ToolTipIcon;
 
 namespace Glowstick
@@ -61,7 +62,11 @@ namespace Glowstick
                 ThreadPool.QueueUserWorkItem(_ => Updater.DeleteOld());
                 tray.Balloon("Glowstick", Lang.F("Updated to {0}.", Updater.Current.ToString(3)), ToolTipIcon.Info, null);
             }
-            else CheckUpdates(false);
+            else CheckUpdates(false, true);
+            // The app can sit in the tray for weeks: look again once a day (CheckAsync skips it until 24 h have passed)
+            DispatcherTimer daily = new DispatcherTimer { Interval = TimeSpan.FromHours(1) };
+            daily.Tick += (s, e) => CheckUpdates(false);
+            daily.Start();
             app.Run();
             Cleanup();   // whatever ended the dispatcher loop
         }
@@ -156,8 +161,9 @@ namespace Glowstick
         public static bool Updating { get { return updating; } }
         public static event Action UpdateChanged;   // found / downloading / failed — the window's update card follows
 
-        // manual — "Check now" in Settings: also say when there's nothing new or this build can't check
-        public static void CheckUpdates(bool manual)
+        // manual — "Check now" in Settings: also say when there's nothing new or this build can't check;
+        // atStart — every start checks (when updates are on), then once a day while the app runs (the hourly timer)
+        public static void CheckUpdates(bool manual, bool atStart = false)
         {
             if (manual && !Updater.Available)
             {
@@ -176,7 +182,7 @@ namespace Glowstick
                 update = u;
                 if (fresh) tray.UpdateFound(u.Version);
                 if (UpdateChanged != null) UpdateChanged();
-            })));
+            })), atStart);
         }
 
         // "Update": download, check, swap the exe, start the new version, exit

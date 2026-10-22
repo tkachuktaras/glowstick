@@ -1,6 +1,6 @@
 // Engine: finding controllers, light bar animation, game mode (virtual DS4 + hiding the real ones),
 // plus everything layered on top of a preset: notification flashes, battery display, idle dimming, hotkeys, BT auto-off.
-// Controller order and per-controller settings (name, own preset) are tied to the MAC — they don't change depending on
+// Controller order and names are tied to the MAC — they don't change depending on
 // whether the controller was connected over USB or BT, or in what sequence.
 using System;
 using System.Collections.Concurrent;
@@ -18,7 +18,8 @@ namespace Glowstick
         public int Rate, Battery; public bool Charging; public double HoursLeft, Brightness;
     }
 
-    // Settings of a specific controller (by MAC): a name, its own preset ("" — same as everyone), and the virtual pad kind
+    // Settings of a specific controller (by MAC): its name. Preset, Output and Brightness are what versions before profiles kept
+    // here — read from settings.json only for the Pro module to move them into the controller's profile, and kept otherwise.
     public class PadConfig { public string Name = "", Preset = "", Output = ""; public double Brightness = 1.0; }
 
     public static class Engine
@@ -39,11 +40,17 @@ namespace Glowstick
         public static readonly List<string> Order = new List<string>();
         public static readonly Dictionary<string, PadConfig> Pads = new Dictionary<string, PadConfig>();
 
-        // Settings from the Settings window
-        public static bool NotifyFlash = true;
+        // The Default profile's settings (the only ones in the free build)
+        public static readonly PadSettings Defaults = new PadSettings();   // light bar and power; a Pro profile can bring its own
         public static volatile bool Hotkeys = true, TouchMouse;
-        public static TouchConfig Touch = new TouchConfig();   // touchpad-as-mouse behaviour (a Pro input profile can bring its own)
-        public static int IdleDimMin = 10, IdleOffMin = 30;   // 0 — off
+        public static TouchConfig Touch = new TouchConfig();   // touchpad-as-mouse behaviour (a Pro profile can bring its own)
+
+        // The light bar and power settings a controller follows: its Pro profile's own ones, else the Default profile's
+        internal static PadSettings SettingsOf(string id)
+        {
+            PadSettings s = Pro.PadSettingsFor != null ? Pro.PadSettingsFor(id) : null;
+            return s ?? Defaults;
+        }
 
         static readonly Stopwatch clock = Stopwatch.StartNew();
         public static long Ms { get { return clock.ElapsedMilliseconds; } }
@@ -172,27 +179,25 @@ namespace Glowstick
             Settings.Save();
         }
 
+        // The tile menu's shortcuts below change the controller's profile (Pro: Pro.EditPadSettings gives the settings to
+        // change — a controller on the Default profile gets a profile of its own first). The light bar loop applies them.
+        static PadSettings Editable(string id) { return Pro.EditPadSettings != null ? Pro.EditPadSettings(id) : null; }
+
         // What games see this controller as: "Xbox" — virtual Xbox 360, else virtual DualShock 4. Switches the virtual pad live.
         public static void SetPadOutput(string id, string kind)
         {
-            kind = kind == "Xbox" ? "Xbox" : "DS4";
-            lock (Lock)
-            {
-                Config(id).Output = kind == "Xbox" ? "Xbox" : "";
-                foreach (Controller d in Devices) if (d.Id == id) d.SwitchOutput(kind);
-            }
+            PadSettings s = Editable(id);
+            if (s == null) return;
+            s.Output = kind == "Xbox" ? "Xbox" : "";
             Settings.Save();
         }
 
         // A controller's own brightness multiplier (0.1 .. 1.0), on top of the global brightness — Pro
         public static void SetPadBrightness(string id, double value)
         {
-            value = Math.Max(0.1, Math.Min(1.0, value));
-            lock (Lock)
-            {
-                Config(id).Brightness = value;
-                foreach (Controller d in Devices) if (d.Id == id) d.PadBrightness = value;
-            }
+            PadSettings s = Editable(id);
+            if (s == null) return;
+            s.Brightness = Math.Max(0.1, Math.Min(1.0, value));
             Settings.Save();
         }
 
@@ -201,12 +206,10 @@ namespace Glowstick
         {
             Preset p = string.IsNullOrEmpty(preset) ? null : Presets.Find(x => x.Name == preset);
             if (p != null && p.Locked) return;   // shown with a lock in the menus, never applied
-            lock (Lock)
-            {
-                Config(id).Preset = preset ?? "";
-                foreach (Controller d in Devices)
-                    if (d.Id == id) { d.FadeFrom = d.Current; d.Fade = 0; d.ApiPreset = null; d.OwnPreset = string.IsNullOrEmpty(preset) ? null : preset; }
-            }
+            PadSettings s = Editable(id);
+            if (s == null) return;
+            s.Preset = preset ?? "";
+            lock (Lock) foreach (Controller d in Devices) if (d.Id == id) d.ApiPreset = null;
             Settings.Save();
         }
 
@@ -252,7 +255,7 @@ namespace Glowstick
         // A few short color flashes (notification)
         internal static void Flash(Controller c, Rgb color, int blinks)
         {
-            if (!NotifyFlash) return;
+            if (!SettingsOf(c.Id).NotifyFlash) return;
             c.NotifyColor = color; c.NotifyStart = Ms; c.NotifyUntil = Ms + blinks * 400;
         }
 
@@ -281,14 +284,15 @@ namespace Glowstick
 
         static void UpdateStatus()
         {
-            if (!IsAdmin) status = Lang.T("Game mode unavailable: the app is running without administrator rights.");
-            else if (Drivers.RebootPending) status = Lang.T("Game mode unavailable: drivers are still being removed — restart the computer.");
+            string log;   // the log is always in English; the status is shown in the app's language
+            if (!IsAdmin) { status = Lang.T("Game mode unavailable: the app is running without administrator rights."); log = "no game mode: not admin"; }
+            else if (Drivers.RebootPending) { status = Lang.T("Game mode unavailable: drivers are still being removed — restart the computer."); log = "no game mode: drivers being removed, restart pending"; }
             else if (notLoaded || client == null && Drivers.AllInstalled)
-                status = Lang.T("Game mode unavailable: restart the computer to finish installing the drivers.");
-            else if (client == null) status = Lang.T("Game mode unavailable: the ViGEmBus driver was not found.");
-            else if (!HidHide.Installed) status = Lang.T("Game mode unavailable: the HidHide driver was not found.");
-            else status = Lang.F("Game mode: games see a virtual {0}, the real controller is hidden.", "DualShock 4");
-            Log.Info("status: " + status);
+            { status = Lang.T("Game mode unavailable: restart the computer to finish installing the drivers."); log = "no game mode: drivers installed, restart pending"; }
+            else if (client == null) { status = Lang.T("Game mode unavailable: the ViGEmBus driver was not found."); log = "no game mode: ViGEmBus not found"; }
+            else if (!HidHide.Installed) { status = Lang.T("Game mode unavailable: the HidHide driver was not found."); log = "no game mode: HidHide not found"; }
+            else { status = Lang.F("Game mode: games see a virtual {0}, the real controller is hidden.", "DualShock 4"); log = "game mode on"; }
+            Log.Info("status: " + log);
         }
 
         static void ConnectClient()
@@ -344,6 +348,8 @@ namespace Glowstick
                     if (d.Dead) { Remove(d); continue; }
                     Live.Cur = d;
                     Live.Pad = d.CopyLast(lastRaw) ? Pad.Parse(lastRaw) : new Pad { LX = 128, LY = 128, RX = 128, RY = 128 };
+                    PadSettings st = SettingsOf(d.Id);
+                    Follow(d, st);
                     // most specific wins: this pad's API override, then its own preset, then a global API override, then the chosen preset
                     string own = d.OwnPreset;
                     Preset named = own != null ? ps.Find(x => x.Name == own) : null;
@@ -354,7 +360,7 @@ namespace Glowstick
                     d.Fade = Math.Min(1, d.Fade + dt / 0.4);
                     if (d.Fade < 1) c = Rgb.Lerp(d.FadeFrom, c, PresetLib.Smooth(d.Fade));
                     d.Current = c;
-                    c = Overlays(d, c, nowMs, dt);
+                    c = Overlays(d, st, c, nowMs, dt);
                     Rgb o = c.Mul(Brightness * d.Dim * d.PadBrightness).Clamp(); d.Out = o;
                     int r = (int)Math.Round(o.R), g = (int)Math.Round(o.G), b = (int)Math.Round(o.B);
                     long since = ms - d.LastSendMs;
@@ -372,16 +378,28 @@ namespace Glowstick
 
         static readonly byte[] lastRaw = new byte[63];
 
+        // A controller takes on its profile's light bar settings every frame, so a game or a profile switch applies at once:
+        // a new own preset fades in, the virtual pad becomes the other kind when the output changes
+        static void Follow(Controller d, PadSettings st)
+        {
+            string own = st.Preset != "" ? st.Preset : null;
+            if (own != d.OwnPreset) { d.FadeFrom = d.Current; d.Fade = 0; d.OwnPreset = own; }
+            d.PadBrightness = Math.Max(0.1, Math.Min(1.0, st.Brightness));
+            d.PlayerLeds = st.PlayerLeds;
+            string kind = st.Output == "Xbox" ? "Xbox" : "DS4";
+            if (kind != d.OutputKind) d.SwitchOutput(kind);
+        }
+
         // On top of the preset: battery display (PS + ✕), button flashes, notifications; idle dimming and auto-off
-        static Rgb Overlays(Controller d, Rgb c, long now, double dt)
+        static Rgb Overlays(Controller d, PadSettings st, Rgb c, long now, double dt)
         {
             if (now < d.BatteryShowUntil) c = PresetLib.BatteryColor(d.Battery, d.Charging, T);
             if (now < d.NotifyUntil && ((now - d.NotifyStart) / 200) % 2 == 0) c = d.NotifyColor;
 
             long idle = now - d.LastActiveMs;
-            bool dim = IdleDimMin > 0 && idle > IdleDimMin * 60000L && now >= d.NotifyUntil;
+            bool dim = st.IdleDimMin > 0 && idle > st.IdleDimMin * 60000L && now >= d.NotifyUntil;
             d.Dim = dim ? Math.Max(0, d.Dim - dt / 1.5) : Math.Min(1, d.Dim + dt / 0.15);
-            if (d.Bluetooth && IdleOffMin > 0 && idle > IdleOffMin * 60000L && !d.IdleOff)
+            if (d.Bluetooth && st.IdleOffMin > 0 && idle > st.IdleOffMin * 60000L && !d.IdleOff)
             {
                 d.IdleOff = true;   // the controller will disappear — DoRescan removes it
                 ulong addr = d.BtAddress;
@@ -559,7 +577,10 @@ namespace Glowstick
                     twin.Dispose();
                 }
                 c.BtPollMs = BtPollMs;
-                lock (Lock) { PadConfig oc; if (Pads.TryGetValue(c.Id, out oc)) { if (oc.Output == "Xbox") c.OutputKind = "Xbox"; c.PadBrightness = oc.Brightness; } }
+                PadSettings st = SettingsOf(c.Id);   // the virtual pad is created as the right kind from the start
+                if (st.Output == "Xbox") c.OutputKind = "Xbox";
+                c.PadBrightness = st.Brightness; c.PlayerLeds = st.PlayerLeds;
+                if (st.Preset != "") c.OwnPreset = st.Preset;
                 try { c.Start(hiddenOk ? client : null); } catch (Exception ex) { Log.Error("start " + c.Id, ex); }
                 c.Hidden = hiddenOk;
                 c.NoVirtual = hiddenOk && !c.Virtual;
@@ -567,8 +588,6 @@ namespace Glowstick
                 lock (Lock)
                 {
                     if (!Order.Contains(c.Id)) Order.Add(c.Id);
-                    PadConfig cfg;
-                    if (Pads.TryGetValue(c.Id, out cfg) && cfg.Preset != "") c.OwnPreset = cfg.Preset;
                     Devices.Add(c);
                     SortDevices();
                 }

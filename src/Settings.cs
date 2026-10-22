@@ -49,22 +49,22 @@ namespace Glowstick
                 if (s.TryGetValue("Preset", out v) && v is string) StartPreset = (string)v;
                 if (s.TryGetValue("Brightness", out v)) Engine.Brightness = Convert.ToDouble(v);
                 if (s.TryGetValue("Speed", out v)) Engine.Speed = Convert.ToDouble(v);
+                if (s.TryGetValue("MusicReaction", out v)) Live.MusicReaction = Math.Max(0.5, Math.Min(3, Convert.ToDouble(v)));
                 if (s.TryGetValue("BtPollMs", out v)) Engine.BtPollMs = Math.Max(0, Math.Min(16, Convert.ToInt32(v)));
-                if (s.TryGetValue("NotifyFlash", out v)) Engine.NotifyFlash = Convert.ToBoolean(v);
+                if (s.TryGetValue("NotifyFlash", out v)) Engine.Defaults.NotifyFlash = Convert.ToBoolean(v);
                 if (s.TryGetValue("Hotkeys", out v)) Engine.Hotkeys = Convert.ToBoolean(v);
                 if (s.TryGetValue("HotkeyMap", out v)) HotkeyMap.Load(v);
                 if (s.TryGetValue("TouchMouse", out v)) Engine.TouchMouse = Convert.ToBoolean(v);
                 if (s.TryGetValue("Touch", out v)) Engine.Touch = TouchConfig.Load(v);
                 else if (s.TryGetValue("TouchSens", out v)) Engine.Touch.Sens = Math.Max(0.2, Math.Min(4, Convert.ToDouble(v)));   // before 1.2
-                if (s.TryGetValue("IdleDimMin", out v)) Engine.IdleDimMin = Math.Max(0, Convert.ToInt32(v));
-                if (s.TryGetValue("IdleOffMin", out v)) Engine.IdleOffMin = Math.Max(0, Convert.ToInt32(v));
-                if (s.TryGetValue("PlayerLeds", out v)) Controller.PlayerLedsOn = Convert.ToBoolean(v);
+                if (s.TryGetValue("IdleDimMin", out v)) Engine.Defaults.IdleDimMin = Math.Max(0, Convert.ToInt32(v));
+                if (s.TryGetValue("IdleOffMin", out v)) Engine.Defaults.IdleOffMin = Math.Max(0, Convert.ToInt32(v));
+                if (s.TryGetValue("PlayerLeds", out v)) Engine.Defaults.PlayerLeds = Convert.ToBoolean(v);
                 if (s.TryGetValue("CheckUpdates", out v)) Updater.Enabled = Convert.ToBoolean(v);
                 DateTime last;
                 if (s.TryGetValue("LastUpdateCheck", out v) && v is string &&
                     DateTime.TryParse((string)v, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out last)) Updater.LastCheck = last;
                 License.Load(s);   // the Pro key (also in the free build — it downloads Pro with it)
-                if (Pro.Load != null) Pro.Load(s);   // custom presets, game profiles, API — the Pro module's part
                 StartPreset = PresetLib.Migrate(StartPreset);
                 lock (Engine.Lock)
                 {
@@ -83,6 +83,7 @@ namespace Glowstick
                             Engine.Pads[kv.Key] = c;
                         }
                 }
+                if (Pro.Load != null) Pro.Load(s);   // custom presets, profiles, game profiles, API — the Pro module's part (after the controllers: it moves their old own presets into profiles)
             }
             catch (Exception e) { Log.Error("settings load", e); if (Lang.Code == "en" && Lang.Setting == "") Lang.Init(""); }
             finally { loaded = true; }
@@ -130,17 +131,18 @@ namespace Glowstick
                 s["Preset"] = Pro.SavedPreset != null ? Pro.SavedPreset() : CurrentPreset();   // during a game profile — what was there before it
                 s["Brightness"] = Engine.Brightness;
                 s["Speed"] = Engine.Speed;
+                s["MusicReaction"] = Live.MusicReaction;
                 s.Remove("GameMode"); s.Remove("VirtualPad");   // game mode is always on, the virtual pad is always a DS4
                 s["BtPollMs"] = Engine.BtPollMs;
-                s["NotifyFlash"] = Engine.NotifyFlash;
+                s["NotifyFlash"] = Engine.Defaults.NotifyFlash;
                 s["Hotkeys"] = Engine.Hotkeys;
                 s["HotkeyMap"] = HotkeyMap.Save();
                 s["TouchMouse"] = Engine.TouchMouse;
                 s["Touch"] = Engine.Touch.Save();
                 s.Remove("TouchSens");
-                s["IdleDimMin"] = Engine.IdleDimMin;
-                s["IdleOffMin"] = Engine.IdleOffMin;
-                s["PlayerLeds"] = Controller.PlayerLedsOn;
+                s["IdleDimMin"] = Engine.Defaults.IdleDimMin;
+                s["IdleOffMin"] = Engine.Defaults.IdleOffMin;
+                s["PlayerLeds"] = Engine.Defaults.PlayerLeds;
                 s["CheckUpdates"] = Updater.Enabled;
                 s["LastUpdateCheck"] = Updater.LastCheck.ToString("o", CultureInfo.InvariantCulture);
                 License.Save(s);

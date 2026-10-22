@@ -43,7 +43,7 @@ namespace Glowstick
         public double Dim = 1, StickHue = 0.6;
         public double PadBrightness = 1.0;     // per-controller brightness multiplier on top of the global one (Pro)
         public bool IdleOff;
-        public static bool PlayerLedsOn = true;   // DualSense: the controller's number on the player LEDs
+        public volatile bool PlayerLeds = true;   // DualSense: the controller's number on the player LEDs (from its profile)
 
         // What games should see this controller as: "Xbox" — a virtual Xbox 360, anything else — a virtual DualShock 4 (Pro).
         public volatile string OutputKind = "DS4";
@@ -313,7 +313,7 @@ namespace Glowstick
                 Array.Clear(buf, 0, buf.Length);
                 bool rumble = Virtual || rumbleTest;   // only in game mode, so we don't override someone else's rumble otherwise
                 int len = DualSense
-                    ? DualSenseWire.Output(buf, Bluetooth, outLen, ref ds5Seq, ref ds5Released, rumble, small, large, trigL, trigR, PlayerLedsOn, Player, r, g, b)
+                    ? DualSenseWire.Output(buf, Bluetooth, outLen, ref ds5Seq, ref ds5Released, rumble, small, large, trigL, trigR, PlayerLeds, Player, r, g, b)
                     : DualShock4Wire.Output(buf, Bluetooth, outLen, BtPollMs, rumble, small, large, r, g, b);
                 int written;
                 bool ok = Native.WriteFile(hWrite, buf, len, out written, IntPtr.Zero) || Native.HidD_SetOutputReport(hWrite, buf, len);

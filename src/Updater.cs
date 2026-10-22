@@ -80,6 +80,7 @@ namespace Glowstick
         }
 
         // Puts fresh in place of exe; the old one stays as exe.old. Returns an error text or null. On failure exe is untouched.
+        // exe may be gone already (renamed while running — e.g. by a build over it): then fresh simply takes its place.
         public static string Swap(string exe, string fresh)
         {
             string old = exe + ".old";
@@ -87,7 +88,7 @@ namespace Glowstick
             {
                 if (!File.Exists(fresh)) return "the downloaded file is missing";
                 if (File.Exists(old)) File.Delete(old);
-                File.Move(exe, old);
+                if (File.Exists(exe)) File.Move(exe, old);
             }
             catch (Exception e) { return e.Message; }
             try { File.Move(fresh, exe); return null; }
@@ -155,9 +156,10 @@ namespace Glowstick
             });
         }
 
-        public static void CheckAsync(bool force, Action<UpdateInfo> onResult)
+        // atStart — the app just started: checked whenever updates are on, not only once a day
+        public static void CheckAsync(bool force, Action<UpdateInfo> onResult, bool atStart = false)
         {
-            if (!Available || (!force && (!Enabled || (DateTime.UtcNow - LastCheck).TotalHours < 24))) return;
+            if (!Available || (!force && (!Enabled || (!atStart && (DateTime.UtcNow - LastCheck).TotalHours < 24)))) return;
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 try

@@ -118,8 +118,8 @@ namespace Glowstick
             StackPanel items = new StackPanel { Margin = new Thickness(8, 8, 8, 0) };
             AddNav(items, Page.Presets, "", Lang.T("Presets"));
             AddNav(items, Page.Controllers, "", Lang.T("Controllers"));
+            AddNav(items, Page.Input, "", Lang.T("Profiles"));
             AddNav(items, Page.Profiles, "", Lang.T("Game profiles"));
-            AddNav(items, Page.Input, "", Lang.T("Input mapping"));
             AddNav(items, Page.Test, "", Lang.T("Controller test"));
             AddNav(items, Page.Settings, "", Lang.T("Settings"));
             side.Children.Add(items);
@@ -229,7 +229,7 @@ namespace Glowstick
         FrameworkElement BuildPage(Page page)
         {
             string title = page == Page.Presets ? Lang.T("Presets") : page == Page.Controllers ? Lang.T("Controllers")
-                : page == Page.Profiles ? Lang.T("Game profiles") : page == Page.Input ? Lang.T("Input mapping") : page == Page.Test ? Lang.T("Controller test") : Lang.T("Settings");
+                : page == Page.Profiles ? Lang.T("Game profiles") : page == Page.Input ? Lang.T("Profiles") : page == Page.Test ? Lang.T("Controller test") : Lang.T("Settings");
             if (page == Page.Presets)
             {
                 PresetsPage pp = new PresetsPage();

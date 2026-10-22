@@ -45,7 +45,7 @@ namespace Glowstick
             };
             general.Children.Add(auto);
 
-            CheckBox upd = Kit.Toggle(general, Lang.T("Check for updates once a day (GitHub Releases; nothing is downloaded by itself)"), Updater.Enabled, v => Updater.Enabled = v);
+            CheckBox upd = Kit.Toggle(general, Lang.T("Check for updates at every start and once a day (GitHub Releases; nothing is downloaded by itself)"), Updater.Enabled, v => Updater.Enabled = v);
             upd.IsEnabled = Updater.Available;
             WrapPanel buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
             Button check = new Button { Content = Lang.T("Check now"), IsEnabled = Updater.Available, Margin = new Thickness(0, 0, 8, 8) };
@@ -59,17 +59,7 @@ namespace Glowstick
             buttons.Children.Add(check); buttons.Children.Add(log); buttons.Children.Add(tray); buttons.Children.Add(exit);
             general.Children.Add(buttons);
 
-            // ---------- light bar ----------
-            StackPanel light = Section(Lang.T("Light bar"));
-            Kit.Toggle(light, Lang.T("Notification flashes: controller connected — white, low battery — red"), Engine.NotifyFlash, v => Engine.NotifyFlash = v);
-            Kit.Toggle(light, Lang.T("DualSense: show the controller number on the player LEDs"), Controller.PlayerLedsOn, v => Controller.PlayerLedsOn = v);
-            Minutes(light, Lang.T("Turn off the light bar if the controller wasn't touched"), Engine.IdleDimMin, v => Engine.IdleDimMin = v);
-
-            // ---------- controller ----------
-            StackPanel ctl = Section(Lang.T("Controller"));
-            Minutes(ctl, Lang.T("Turn off a Bluetooth controller if it wasn't touched"), Engine.IdleOffMin, v => Engine.IdleOffMin = v);
-            // The touchpad and the PS hotkeys are on the Input mapping page (ControlSettings)
-
+            // The light bar, power, touchpad and hotkey settings are in the profile (Profiles page, ControlSettings)
             LicenseSettings.Add(this);   // the Pro key — in the free build too (it downloads Pro)
 
             // Pro: Local API (and whatever else the module adds here)
@@ -106,35 +96,6 @@ namespace Glowstick
         internal StackPanel Section(string title) { return Kit.Card(page, title); }
 
         internal static FrameworkElement Row(string label, FrameworkElement control) { return Kit.Row(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center }, control, 170); }
-
-        // "…wasn't touched (min, 0 — never):" with a number box 0–240
-        static void Minutes(Panel parent, string text, int value, Action<int> set)
-        {
-            DockPanel row = new DockPanel { Margin = new Thickness(0, parent.Children.Count > 0 ? 10 : 0, 0, 0) };
-            TextBox box = new TextBox { Width = 70, Text = Math.Max(0, Math.Min(240, value)).ToString(), MaxLength = 3, HorizontalContentAlignment = HorizontalAlignment.Center };
-            box.PreviewTextInput += (s, e) => { foreach (char ch in e.Text) if (!char.IsDigit(ch)) e.Handled = true; };
-            // Saved as you type — focus doesn't always leave the box (a click on an empty spot, closing the window)
-            box.TextChanged += (s, e) =>
-            {
-                int v;
-                if (!int.TryParse(box.Text, out v)) return;   // empty while retyping — keep the last value
-                set(Math.Max(0, Math.Min(240, v))); Settings.Save();
-            };
-            // Leaving the box or Enter: show what was actually saved (empty → 0, over 240 → 240)
-            Action tidy = () =>
-            {
-                int v;
-                if (!int.TryParse(box.Text, out v)) { v = 0; set(0); Settings.Save(); }
-                string shown = Math.Max(0, Math.Min(240, v)).ToString();
-                if (box.Text != shown) box.Text = shown;
-            };
-            box.LostKeyboardFocus += (s, e) => tidy();
-            box.KeyDown += (s, e) => { if (e.Key == Key.Enter) tidy(); };
-            DockPanel.SetDock(box, Dock.Right);
-            row.Children.Add(box);
-            row.Children.Add(new TextBlock { Text = text + " " + Lang.T("(min, 0 — never):"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) });
-            parent.Children.Add(row);
-        }
 
         public void OnTick() { }
     }

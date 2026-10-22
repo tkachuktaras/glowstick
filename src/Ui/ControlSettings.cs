@@ -1,16 +1,84 @@
-// The controller's own settings that live on the Input mapping page (free and Pro): the touchpad as a mouse and the
-// PS hotkeys. Editing the hotkey combos is Pro — the free build shows the table locked with its defaults.
+// A profile's settings that the free build has too, shared by the free Profiles page and the Pro one: light bar, power (idle
+// turn-off), the touchpad as a mouse and the PS hotkeys. Editing the hotkey combos is Pro — the free build shows the table locked.
 using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace Glowstick
 {
     internal static class ControlSettings
     {
+        // Light bar part of a profile. The Default profile's (Engine.Defaults) preset and brightness are the Presets page's;
+        // another profile can have its own.
+        public static void Light(Panel p, PadSettings s, bool isDefault)
+        {
+            if (isDefault) Kit.Note(p, Lang.T("The preset and brightness of the Default profile are the ones chosen on the Presets page."));
+            else
+            {
+                ComboBox preset = ControllersPage.PresetCombo(Lang.T("Same as everyone"));
+                foreach (object o in preset.Items)
+                {
+                    ComboBoxItem it = o as ComboBoxItem;
+                    if (it != null && (string)it.Tag == s.Preset) { preset.SelectedItem = it; break; }
+                }
+                if (preset.SelectedIndex < 0) preset.SelectedIndex = 0;
+                preset.SelectionChanged += (o, e) =>
+                {
+                    ComboBoxItem it = preset.SelectedItem as ComboBoxItem;
+                    if (it == null || it.Tag == null) return;
+                    s.Preset = (string)it.Tag;
+                    Settings.Save();
+                };
+                preset.MaxWidth = 280; preset.HorizontalAlignment = HorizontalAlignment.Stretch;
+                p.Children.Add(Kit.Row(Kit.Label(Lang.T("Preset:")), preset, 240));
+                Kit.Slide(p, v => Lang.F("Brightness: {0}%", (int)v), 10, 100, Math.Round(s.Brightness * 100), v => s.Brightness = v / 100.0, 0, 5);
+            }
+            Kit.Toggle(p, Lang.T("Notification flashes: controller connected — white, low battery — red"), s.NotifyFlash, v => s.NotifyFlash = v);
+            Kit.Toggle(p, Lang.T("DualSense: show the controller number on the player LEDs"), s.PlayerLeds, v => s.PlayerLeds = v);
+            Minutes(p, Lang.T("Turn off the light bar if the controller wasn't touched"), s.IdleDimMin, v => s.IdleDimMin = v);
+        }
+
+        // Power part of a profile (Bluetooth idle turn-off). What games see the controller as is Pro — shown for a Pro profile only.
+        public static void Power(Panel p, PadSettings s, bool output)
+        {
+            if (output)
+                Kit.Combo(p, Lang.T("Show to games as"), new[] { "DualShock 4", "Xbox 360" }, s.Output == "Xbox" ? 1 : 0, i => s.Output = i == 1 ? "Xbox" : "", 220);
+            Minutes(p, Lang.T("Turn off a Bluetooth controller if it wasn't touched"), s.IdleOffMin, v => s.IdleOffMin = v);
+        }
+
+        // "…wasn't touched (min, 0 — never):" with a number box 0–240
+        static void Minutes(Panel parent, string text, int value, Action<int> set)
+        {
+            DockPanel row = new DockPanel { Margin = new Thickness(0, parent.Children.Count > 0 ? 10 : 0, 0, 0) };
+            TextBox box = new TextBox { Width = 70, Text = Math.Max(0, Math.Min(240, value)).ToString(), MaxLength = 3, HorizontalContentAlignment = HorizontalAlignment.Center };
+            box.PreviewTextInput += (s, e) => { foreach (char ch in e.Text) if (!char.IsDigit(ch)) e.Handled = true; };
+            // Saved as you type — focus doesn't always leave the box (a click on an empty spot, closing the window)
+            box.TextChanged += (s, e) =>
+            {
+                int v;
+                if (!int.TryParse(box.Text, out v)) return;   // empty while retyping — keep the last value
+                set(Math.Max(0, Math.Min(240, v))); Settings.Save();
+            };
+            // Leaving the box or Enter: show what was actually saved (empty → 0, over 240 → 240)
+            Action tidy = () =>
+            {
+                int v;
+                if (!int.TryParse(box.Text, out v)) { v = 0; set(0); Settings.Save(); }
+                string shown = Math.Max(0, Math.Min(240, v)).ToString();
+                if (box.Text != shown) box.Text = shown;
+            };
+            box.LostKeyboardFocus += (s, e) => tidy();
+            box.KeyDown += (s, e) => { if (e.Key == Key.Enter) tidy(); };
+            DockPanel.SetDock(box, Dock.Right);
+            row.Children.Add(box);
+            row.Children.Add(new TextBlock { Text = text + " " + Lang.T("(min, 0 — never):"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0) });
+            parent.Children.Add(row);
+        }
+
         // Touchpad as mouse: the switch (it follows the PS hotkey / tray toggle too) and its options
         public static void Touchpad(Panel p)
         {

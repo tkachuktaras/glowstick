@@ -27,6 +27,9 @@ namespace Glowstick
         readonly List<PresetCard> cards = new List<PresetCard>();
         readonly Slider bright = new Slider { Minimum = 0, Maximum = 100 }, speed = new Slider { Minimum = 10, Maximum = 400 };
         readonly TextBlock lblBright = new TextBlock(), lblSpeed = new TextBlock();
+        readonly Slider music = new Slider { Minimum = 50, Maximum = 300 };   // music reaction (Pro, with a music preset)
+        readonly TextBlock lblMusic = new TextBlock();
+        readonly StackPanel musicRow = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
         readonly AnimClock clock = new AnimClock();
         readonly string group = "chips" + Guid.NewGuid().ToString("N");
 
@@ -71,15 +74,23 @@ namespace Glowstick
             right.Children.Add(lblSpeed); right.Children.Add(speed);
             Grid.SetColumn(right, 2);
             g.Children.Add(left); g.Children.Add(right);
+            musicRow.Children.Add(lblMusic); musicRow.Children.Add(music);
+            Grid.SetRow(musicRow, 1); Grid.SetColumnSpan(musicRow, 3);
+            g.RowDefinitions.Add(new RowDefinition()); g.RowDefinitions.Add(new RowDefinition());
+            g.Children.Add(musicRow);
 
             bright.Value = Math.Round(Engine.Brightness * 100);
             speed.Value = Math.Round(Engine.Speed * 100);
+            music.Value = Math.Round(Live.MusicReaction * 100);
             bright.ValueChanged += (s, e) => { Engine.Brightness = Math.Round(bright.Value) / 100.0; LabelSliders(); };
             speed.ValueChanged += (s, e) => { Engine.Speed = Math.Round(speed.Value) / 100.0; LabelSliders(); };
+            music.ValueChanged += (s, e) => { Live.MusicReaction = Math.Round(music.Value) / 100.0; LabelSliders(); };
             // Save when the drag ends, not on every step
             bright.PreviewMouseUp += (s, e) => Settings.Save();
             speed.PreviewMouseUp += (s, e) => Settings.Save();
+            music.PreviewMouseUp += (s, e) => Settings.Save();
             LabelSliders();
+            ShowMusic();
 
             card.Child = g;
             return card;
@@ -89,6 +100,15 @@ namespace Glowstick
         {
             lblBright.Text = Lang.F("Brightness: {0}%", (int)Math.Round(bright.Value));
             lblSpeed.Text = Lang.F("Animation speed: {0}%", (int)Math.Round(speed.Value));
+            lblMusic.Text = Lang.F("Music reaction: {0}% (more — only the hits light up)", (int)Math.Round(music.Value));
+        }
+
+        // The music reaction slider: only with a music preset chosen, and only in Pro (music presets are Pro)
+        void ShowMusic()
+        {
+            List<Preset> ps = Engine.Presets;
+            Preset cur = ps[Math.Max(0, Math.Min(Engine.PresetIndex, ps.Count - 1))];
+            musicRow.Visibility = Pro.Unlocked && cur.Music ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // ---------- chips and grid ----------
@@ -208,6 +228,7 @@ namespace Glowstick
         public void SyncSelection()
         {
             if (!ReferenceEquals(shownList, Engine.Presets)) Rebuild();
+            ShowMusic();
             if (shownIndex != Engine.PresetIndex)
             {
                 string cat = Engine.Presets[Math.Min(Engine.PresetIndex, Engine.Presets.Count - 1)].Category;

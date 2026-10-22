@@ -50,8 +50,8 @@ One controller in the free version.
 - **Any number of controllers**, with names, their own presets and brightness.
 - **All animations and live presets** that react to music, the screen, the battery, the triggers and the sticks.
 - **Your own presets**, shareable as files.
+- **Profiles** for every controller and game, switched automatically: light bar, input mapping, touchpad; import and export as files.
 - **Input mapping** on par with DS4Windows: remap buttons, sticks, triggers, the touchpad and motion to buttons, keys, the mouse, macros or actions; dead zones and curves; gyro aiming; flick stick.
-- **Game profiles:** a preset and input profile per game, switched automatically.
 - **Battery history** and wear warning.
 - **[Local API](docs/local-api.md)** for Stream Deck, Home Assistant, OBS and scripts.
 

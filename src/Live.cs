@@ -38,21 +38,41 @@ namespace Glowstick
         interface IAudioMeterInformation { [PreserveSig] int GetPeakValue(out float peak); }
 
         static IAudioMeterInformation meter;
-        static double meterAt = -10, audioAt, level, slowMax = 0.1;
+        static double meterAt = -10, audioAt;
+        static readonly AudioState audio = new AudioState();
 
-        // Level 0..1 with auto-gain (quiet music "pumps" too). Polled at most once every 8 ms.
+        // How strongly music presets react (Pro, settings.json "MusicReaction"): 0.5 — soft, 1 — normal, up to 3 — only the hits light up
+        public static double MusicReaction = 1.0;
+
+        // Level 0..1 for music presets. Polled at most once every 8 ms.
         public static double Audio()
         {
             double now = clock.Elapsed.TotalSeconds;
-            if (now - audioAt < 0.008) return level;
+            if (now - audioAt < 0.008) return audio.Level;
             double dt = Math.Min(0.1, now - audioAt); audioAt = now;
             if (meter == null || now - meterAt > 5) OpenMeter(now);   // every 5 s — in case the output device changed
             float peak = 0;
             try { if (meter != null && meter.GetPeakValue(out peak) != 0) peak = 0; } catch { meter = null; }
-            slowMax = Math.Max(peak, Math.Max(0.05, slowMax * Math.Pow(0.85, dt)));   // slowly forgets loud moments
-            double target = Math.Pow(Math.Min(1, peak / slowMax), 1.6);
-            level = target > level ? target : level * Math.Pow(0.02, dt);              // sharp attack, smooth decay
-            return level;
+            return AudioStep(audio, peak, dt, MusicReaction);
+        }
+
+        internal sealed class AudioState { public double Level, Avg, Max = 0.1; }
+
+        // Music is mostly loud all the time (mastering squeezes it), so the peak against the loudest recent moment hardly moves.
+        // What the eye follows is how far this moment stands out above the song's running loudness — beats and accents:
+        // the level is the peak's height between a floor just under the running average (~1 s) and the loudest recent peak.
+        // Quiet songs pump too (the scale follows the song). reaction sharpens the contrast and the fade: higher — dark between
+        // the hits (a kick at 120 BPM: between them ~0.46 at 0.5, ~0.23 at 1, ~0.07 at 2), lower — a softer glow.
+        internal static double AudioStep(AudioState s, double peak, double dt, double reaction)
+        {
+            reaction = Math.Max(0.25, reaction);
+            s.Avg += (peak - s.Avg) * (1 - Math.Exp(-dt / 1.0));
+            s.Max = Math.Max(peak, Math.Max(0.05, s.Max * Math.Pow(0.8, dt)));   // slowly forgets loud moments
+            double floor = s.Avg * 0.9;
+            double x = Math.Max(0, Math.Min(1, (peak - floor) / Math.Max(0.02, s.Max - floor)));
+            double target = Math.Pow(x, 1.6 * reaction);
+            s.Level = target > s.Level ? target : s.Level * Math.Pow(0.003, dt * reaction);   // instant attack, a quick fade (~0.2 s at 1)
+            return s.Level;
         }
 
         static void OpenMeter(double now)

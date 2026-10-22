@@ -1,4 +1,4 @@
-// The small set of building blocks every settings-like page is made of (Settings, Input mapping, Game profiles, the
+// The small set of building blocks every settings-like page is made of (Settings, Profiles, Game profiles, the
 // locked previews): cards with a title, label + control rows, toggles, sliders, combo boxes, table columns with a header,
 // remove buttons. One place, so the pages look the same and a fix lands everywhere.
 using System;

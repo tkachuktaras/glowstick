@@ -36,6 +36,11 @@ $repo = if ($NoUpdates) { '' } else { Get-Repo }
 $buildInfo = New-BuildInfo $repo
 $out = if ($Out) { $Out } else { Join-Path (Join-Path $root 'dist') 'Glowstick.exe' }
 New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
+# csc renames an output that is in use (a running Glowstick) and then fails — the running app would lose its exe
+if (Test-Path $out) {
+    try { [IO.File]::Open($out, 'Open', 'ReadWrite', 'None').Close() }
+    catch { throw "$out is in use (Glowstick is running from it) — close it or build with -Out <another path>" }
+}
 
 & $csc /nologo /target:winexe /optimize+ /platform:anycpu /codepage:65001 `
     "/out:$out" "/win32icon:$ico" "/win32manifest:$(Join-Path $root 'src\app.manifest')" `

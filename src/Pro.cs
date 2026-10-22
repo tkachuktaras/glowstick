@@ -38,6 +38,8 @@ namespace Glowstick
         // (already button-masked for held hotkeys); returns the report to forward (the same array when nothing was remapped).
         public static Func<Controller, byte[], byte[], long, byte[]> MapReport;
         public static Func<Controller, TouchConfig> TouchFor = null;             // the touchpad settings of the controller's input profile, or null — the global ones
+        public static Func<string, PadSettings> PadSettingsFor = null;           // the light bar / power settings of the controller's profile (by id), or null — Engine.Defaults
+        public static Func<string, PadSettings> EditPadSettings = null;          // the settings a tile-menu change goes to (gives the controller a profile of its own if it had none)
         public static Func<Controller, double> RumbleScale = null;               // rumble strength multiplier of the controller's input profile
         public static Action<ContextMenu, string> PadMenu = null;                 // extra items in a controller's tile menu (by id)
         public static Action<string> ControllerGone = null;                   // a controller was closed (by id): release what its input mapping holds

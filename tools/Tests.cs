@@ -58,6 +58,7 @@ namespace Glowstick
             DragOrder();
             Hotkeys();
             TouchMouse();
+            MusicLevel();
             Hardening();
             PadPieces();
             ProServerAnswers();
@@ -352,6 +353,32 @@ namespace Glowstick
         }
 
         // Swapping the running exe: old → .old, new → its place; any failure puts the old one back
+        // Music presets: a loud, compressed song with a kick at 120 BPM — the hits light up, the light drops between them;
+        // a quiet song pumps the same; a stronger reaction is darker between the hits
+        static void MusicLevel()
+        {
+            Func<double, double, double[]> run = (volume, reaction) =>
+            {
+                Live.AudioState s = new Live.AudioState();
+                Random rnd = new Random(1);
+                double hit = 0, between = 0; int nh = 0, nb = 0;
+                for (int k = 0; k < 125 * 10; k++)
+                {
+                    double t = k / 125.0, beat = PresetLib.Frac(t * 2);
+                    double peak = volume * (0.72 + 0.22 * Math.Exp(-beat * 14) + 0.04 * rnd.NextDouble());
+                    double v = Live.AudioStep(s, peak, 1 / 125.0, reaction);
+                    if (t < 3) continue;   // settled
+                    if (beat < 0.04) { hit += v; nh++; } else if (beat > 0.3) { between += v; nb++; }
+                }
+                return new[] { hit / nh, between / nb };
+            };
+            double[] loud = run(1, 1), quiet = run(0.08, 1), strong = run(1, 2), soft = run(1, 0.5);
+            Check(loud[0] > 0.75 && loud[1] < 0.3, "music: hits bright, between them dark (" + loud[0].ToString("0.00") + " / " + loud[1].ToString("0.00") + ")");
+            Check(Math.Abs(quiet[0] - loud[0]) < 0.1 && Math.Abs(quiet[1] - loud[1]) < 0.1, "music: a quiet song pumps like a loud one");
+            Check(strong[1] < loud[1] * 0.5 && soft[1] > loud[1] * 1.5 && strong[0] > 0.75, "music: reaction strength — stronger is clearly darker between the hits, softer brighter (" +
+                soft[1].ToString("0.00") + " / " + loud[1].ToString("0.00") + " / " + strong[1].ToString("0.00") + ")");
+        }
+
         static void UpdateSwap()
         {
             string dir = Path.Combine(Path.GetTempPath(), "glowstick-test-" + Guid.NewGuid().ToString("N"));
@@ -364,6 +391,8 @@ namespace Glowstick
                 Check(Updater.Rollback(exe) && File.ReadAllText(exe) == "old" && !File.Exists(exe + ".old"), "rollback: the old exe is back");
                 File.WriteAllText(exe, "current");
                 Check(Updater.Swap(exe, Path.Combine(dir, "missing.exe")) != null && File.ReadAllText(exe) == "current", "swap failure → the current exe stays");
+                File.Delete(exe); File.WriteAllText(fresh, "new");   // the running exe was renamed away (e.g. a build over it)
+                Check(Updater.Swap(exe, fresh) == null && File.ReadAllText(exe) == "new", "swap: the exe is gone → the new one takes its place");
             }
             finally { try { Directory.Delete(dir, true); } catch { } }
         }

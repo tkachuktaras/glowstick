@@ -27,6 +27,7 @@ namespace Glowstick
         public string Category; public string Name; public ColorFn Fn;
         public object Custom;   // the user's own preset (Pro module), null — built-in
         public bool Pro;        // comes with Pro: locked until it's purchased
+        public bool Music;      // follows the sound (the Presets page shows the music reaction slider with it)
         public bool Locked { get { return (Pro || Custom != null) && !Glowstick.Pro.Unlocked; } }
         public string Title { get { return Custom != null ? Name : Lang.T(Name); } }
         public string CategoryTitle { get { return Lang.T(Category); } }
@@ -122,7 +123,7 @@ namespace Glowstick
         {
             List<Preset> L = new List<Preset>();
             bool pro = false;
-            Action<string, string, ColorFn> add = (c, n, f) => L.Add(new Preset { Category = c, Name = n, Fn = f, Pro = pro });
+            Action<string, string, ColorFn> add = (c, n, f) => L.Add(new Preset { Category = c, Name = n, Fn = f, Pro = pro, Music = n.StartsWith("Music:") });   // "Music: rainbow" (Pro)
 
             // --- Pairs: 1st color on odd controllers, 2nd on even ones. Players — everyone gets their own, as on the PS4 ---
             Rgb[] players = Hs(0x0030FF, 0xFF0000, 0x00FF00, 0xFF0080, 0xFF8000, 0x00FFFF, 0x8000FF, 0xFFFFFF);
