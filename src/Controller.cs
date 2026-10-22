@@ -136,7 +136,7 @@ namespace Glowstick
             alive = true;
             reader = new Thread(ReadLoop);
             reader.IsBackground = true; reader.Name = "DS4 input";
-            reader.Priority = Virtual ? ThreadPriority.Highest : ThreadPriority.Normal;
+            reader.Priority = ThreadPriority.Highest;   // touchpad-as-mouse and battery/LED need the same low latency without a game too
             reader.Start();
             return true;
         }
