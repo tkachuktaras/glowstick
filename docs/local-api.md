@@ -11,6 +11,8 @@ to change. Turn it on in **Settings → Local API**; that screen shows the port 
   in the URL. Without it (or with the wrong one) you get `401`.
 - Turning the token over (the "New token" button) immediately invalidates the old one.
 - Bodies and replies are JSON.
+- Limits: the request line and each header up to 8 KB, at most 64 headers (otherwise `400`), the body up to
+  64 KB (otherwise `413`). The token is checked before the body is read.
 
 ## Controllers
 

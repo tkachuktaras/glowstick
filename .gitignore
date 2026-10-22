@@ -16,3 +16,6 @@
 # Owner-only: the roadmap (kept locally, not published) and tool scratch files
 /ROADMAP.md
 .superpowers/
+
+# Local analysis output (graphify)
+graphify-out/
