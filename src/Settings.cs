@@ -46,7 +46,8 @@ namespace Glowstick
                 if (s.TryGetValue("Hotkeys", out v)) Engine.Hotkeys = Convert.ToBoolean(v);
                 if (s.TryGetValue("HotkeyMap", out v)) HotkeyMap.Load(v);
                 if (s.TryGetValue("TouchMouse", out v)) Engine.TouchMouse = Convert.ToBoolean(v);
-                if (s.TryGetValue("TouchSens", out v)) Engine.TouchSens = Math.Max(0.2, Math.Min(4, Convert.ToDouble(v)));
+                if (s.TryGetValue("Touch", out v)) Engine.Touch = TouchConfig.Load(v);
+                else if (s.TryGetValue("TouchSens", out v)) Engine.Touch.Sens = Math.Max(0.2, Math.Min(4, Convert.ToDouble(v)));   // before 1.2
                 if (s.TryGetValue("IdleDimMin", out v)) Engine.IdleDimMin = Math.Max(0, Convert.ToInt32(v));
                 if (s.TryGetValue("IdleOffMin", out v)) Engine.IdleOffMin = Math.Max(0, Convert.ToInt32(v));
                 if (s.TryGetValue("PlayerLeds", out v)) Controller.PlayerLedsOn = Convert.ToBoolean(v);
@@ -109,7 +110,8 @@ namespace Glowstick
                 s["Hotkeys"] = Engine.Hotkeys;
                 s["HotkeyMap"] = HotkeyMap.Save();
                 s["TouchMouse"] = Engine.TouchMouse;
-                s["TouchSens"] = Engine.TouchSens;
+                s["Touch"] = Engine.Touch.Save();
+                s.Remove("TouchSens");
                 s["IdleDimMin"] = Engine.IdleDimMin;
                 s["IdleOffMin"] = Engine.IdleOffMin;
                 s["PlayerLeds"] = Controller.PlayerLedsOn;

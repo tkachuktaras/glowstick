@@ -43,7 +43,7 @@ Requirements: Windows 10/11, .NET Framework 4.7.2+ (already in Windows), a DualS
   <img src="assets/readme/tray.png" alt="Tray icon with the battery of two controllers" width="320">
 
 - **Hotkeys (hold PS):** ←/→ preset, ↑/↓ brightness, ✕ show battery, □ touchpad as mouse, Options — turn off a Bluetooth controller. Every one of them can be moved to another button or turned off in Settings.
-- **Touchpad as mouse:** one finger — cursor, two — scroll; turns itself off in fullscreen games.
+- **Touchpad as mouse:** one finger — cursor, two — scroll (both directions); tap to click, double-tap drag, trackball glide, jitter compensation, absolute mode; turns itself off in fullscreen games.
 - **Controller test:** buttons, sticks, triggers, touchpad, gyro, report rate, rumble.
 - **Updates:** a check once a day; one click on “Update” downloads the new version, verifies its SHA-256 and restarts Glowstick.
 
@@ -52,7 +52,8 @@ Requirements: Windows 10/11, .NET Framework 4.7.2+ (already in Windows), a DualS
 - **All animations and gradients**, and **live presets** that react to music, the screen, the battery, the triggers and the stick.
 - **Any number of controllers:** animations spread across all of them; names and own presets per controller; drag them to change the order.
 - **Your own presets:** colors, speed and offset between controllers; **buttons** and **sticks** that light up in their own colors; export / import as `.glowstick` files.
-- **Game profiles:** a preset of its own while a given game is running.
+- **Input mapping**, as capable as DS4Windows: remap any button, stick direction, trigger stage, touchpad region / swipe or tilt to a controller button, a key, the mouse, a macro or a special action (switch profile, launch a program, turn off…); tap / hold / double tap, turbo, toggle and shift layers on any source; macros with pauses and key down / up, typed or recorded; stick and trigger dead zones, response curves, stick → mouse and flick stick; gyro → mouse or stick with smoothing, acceleration and calibration; rumble strength. Everything lives in **input profiles**.
+- **Game profiles:** a preset and an input profile of their own while a given game is running (matched by exe, wildcards or window title).
 - **Battery history:** a graph of the last 24 hours, how long a full charge lasts, a warning when the battery wears out.
 - **[Local API](docs/local-api.md)** for Stream Deck, Home Assistant, OBS and your own scripts — switch presets and set colors or effects live.
 

@@ -71,15 +71,9 @@ namespace Glowstick
             ctl.Children.Add(HotkeyTable());
             touch = Toggle(ctl, Lang.T("Touchpad as mouse: one finger — cursor, two fingers — scroll, click — left button (with two fingers — right).\nTurns itself off in fullscreen games."),
                 Engine.TouchMouse, v => Engine.TouchMouse = v);
-            TextBlock lblSens = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
-            Slider sens = new Slider { Minimum = 20, Maximum = 400, Value = Math.Max(20, Math.Min(400, Math.Round(Engine.TouchSens * 100))) };
-            Action showSens = () => lblSens.Text = Lang.F("Sensitivity: {0}%", (int)Math.Round(sens.Value));
-            sens.ValueChanged += (s, e) => { Engine.TouchSens = Math.Round(sens.Value) / 100.0; showSens(); };
-            sens.PreviewMouseUp += (s, e) => Settings.Save();
-            showSens();
-            FrameworkElement sensRow = Row(lblSens, sens, 220);
-            sensRow.Margin = new Thickness(50, 8, 0, 0);
-            ctl.Children.Add(sensRow);
+            StackPanel touchOpts = new StackPanel { Margin = new Thickness(50, 0, 0, 0) };
+            TouchSettings.Build(touchOpts, Engine.Touch);
+            ctl.Children.Add(touchOpts);
 
             LicenseSettings.Add(this);   // the Pro key — in the free build too (it downloads Pro)
 
@@ -140,6 +134,21 @@ namespace Glowstick
             c.Click += (s, e) => { set(c.IsChecked == true); Settings.Save(); };
             parent.Children.Add(c);
             return c;
+        }
+
+        // A labelled slider: label(value) on the left, the slider on the right; saved when the mouse is released or a key is used
+        internal static Slider Slide(Panel parent, Func<double, string> label, double min, double max, double value, Action<double> set, double indent = 0, double step = 1)
+        {
+            TextBlock lbl = new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+            Slider sl = new Slider { Minimum = min, Maximum = max, Value = Math.Max(min, Math.Min(max, value)), SmallChange = step, LargeChange = step * 5, IsSnapToTickEnabled = true, TickFrequency = step };
+            lbl.Text = label(sl.Value);
+            sl.ValueChanged += (s, e) => { set(sl.Value); lbl.Text = label(sl.Value); };
+            sl.PreviewMouseUp += (s, e) => Settings.Save();
+            sl.KeyUp += (s, e) => Settings.Save();
+            FrameworkElement row = Row(lbl, sl, 240);
+            row.Margin = new Thickness(indent, 10, 0, 0);
+            parent.Children.Add(row);
+            return sl;
         }
 
         // "…wasn't touched (min, 0 — never):" with a number box 0–240

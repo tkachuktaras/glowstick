@@ -13,7 +13,7 @@ namespace Glowstick
 {
     internal class MainWindow : Window
     {
-        public enum Page { Presets, Controllers, Profiles, Test, Settings }
+        public enum Page { Presets, Controllers, Profiles, Input, Test, Settings }
 
         // Fires every 40 ms while the window is visible (not minimized, not hidden in the tray)
         public event Action Tick;
@@ -119,6 +119,7 @@ namespace Glowstick
             AddNav(items, Page.Presets, "", Lang.T("Presets"));
             AddNav(items, Page.Controllers, "", Lang.T("Controllers"));
             AddNav(items, Page.Profiles, "", Lang.T("Game profiles"));
+            AddNav(items, Page.Input, "", Lang.T("Input mapping"));
             AddNav(items, Page.Test, "", Lang.T("Controller test"));
             AddNav(items, Page.Settings, "", Lang.T("Settings"));
             side.Children.Add(items);
@@ -228,7 +229,7 @@ namespace Glowstick
         FrameworkElement BuildPage(Page page)
         {
             string title = page == Page.Presets ? Lang.T("Presets") : page == Page.Controllers ? Lang.T("Controllers")
-                : page == Page.Profiles ? Lang.T("Game profiles") : page == Page.Test ? Lang.T("Controller test") : Lang.T("Settings");
+                : page == Page.Profiles ? Lang.T("Game profiles") : page == Page.Input ? Lang.T("Input mapping") : page == Page.Test ? Lang.T("Controller test") : Lang.T("Settings");
             if (page == Page.Presets)
             {
                 PresetsPage pp = new PresetsPage();
@@ -258,6 +259,7 @@ namespace Glowstick
                 if (extra != null) return extra;
             }
             if (page == Page.Profiles) return LockedPages.Profiles(title);
+            if (page == Page.Input) return LockedPages.Input(title);
             if (page == Page.Controllers)
             {
                 ControllersPage cp = new ControllersPage();

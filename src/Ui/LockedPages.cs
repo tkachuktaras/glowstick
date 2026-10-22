@@ -90,6 +90,34 @@ namespace Glowstick
             return g;
         }
 
+        // Input mapping: what the page does (button remap, macros, sticks, gyro, touchpad per profile), locked
+        public static FrameworkElement Input(string title)
+        {
+            StackPanel page = new StackPanel { Margin = new Thickness(28, 20, 28, 28), MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Left };
+            StackPanel head = new StackPanel { Orientation = Orientation.Horizontal };
+            head.Children.Add(new TextBlock { Text = title, Style = Theme.Style("PageTitle") });
+            FrameworkElement badge = Badge();
+            badge.Margin = new Thickness(12, 0, 0, 10);
+            head.Children.Add(badge);
+            page.Children.Add(head);
+            page.Children.Add(new TextBlock { Text = Lang.T("Remap buttons, sticks, triggers, the touchpad and motion to other buttons, keys, the mouse or macros — with a profile for every game."),
+                Style = Theme.Style("MutedText"), FontSize = 13, Margin = new Thickness(0, -6, 0, 14), TextWrapping = TextWrapping.Wrap });
+
+            StackPanel list = new StackPanel();
+            string[] perks =
+            {
+                Lang.T("Button remap with tap, hold, double tap, turbo and toggle; shift layers on any button"),
+                Lang.T("Macros with delays, key down / up, mouse and controller buttons — typed or recorded"),
+                Lang.T("Stick and trigger dead zones, response curves, mouse and flick stick"),
+                Lang.T("Gyro aiming: mouse or stick, smoothing, acceleration, calibration"),
+                Lang.T("Special actions: switch profile, launch a program, turn the controller off")
+            };
+            foreach (string s in perks) list.Children.Add(new TextBlock { Text = "•  " + s, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 4) });
+            Border card = new Border { Style = Theme.Style("CardBox"), Padding = new Thickness(18, 12, 18, 14), Child = list, Opacity = 0.75 };
+            page.Children.Add(Covered(card));
+            return new ScrollViewer { Content = page, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        }
+
         // A controller's card: where the battery history chart is in Pro — an empty chart frame with a lock
         public static FrameworkElement BatteryHistory()
         {

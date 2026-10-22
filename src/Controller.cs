@@ -230,6 +230,11 @@ namespace Glowstick
 
         void SetRumble(byte l, byte s)
         {
+            if (Pro.RumbleScale != null)   // a Pro input profile can boost or weaken the rumble
+            {
+                double k = Pro.RumbleScale(this);
+                l = (byte)Math.Min(255, Math.Round(l * k)); s = (byte)Math.Min(255, Math.Round(s * k));
+            }
             if (l == large && s == small) return;
             large = l; small = s;
             if (LR >= 0) Send(LR, LG, LB);   // rumble goes out immediately, without waiting for an animation frame
@@ -307,7 +312,13 @@ namespace Glowstick
                         UpdateBattery(Math.Min(100, (b & 0x0F) * 100 / (chg ? 11 : 8)), chg, now);
                     }
                 }
-                if (Engine.TouchMouse && !Fullscreen.App) { Pad p = Pad.Parse(raw); touch.Process(ref p); touchWas = true; }
+                if (Engine.TouchMouse && !Fullscreen.App)
+                {
+                    Pad p = Pad.Parse(raw);
+                    TouchConfig tc = Pro.TouchFor != null ? Pro.TouchFor(this) : null;   // a Pro input profile may bring its own
+                    touch.Process(ref p, tc ?? Engine.Touch, now);
+                    touchWas = true;
+                }
                 else if (touchWas) { touch.Reset(); touchWas = false; }
             }
             if (touchWas) touch.Reset();

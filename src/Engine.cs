@@ -40,7 +40,7 @@ namespace Glowstick
         // Settings from the Settings window
         public static bool NotifyFlash = true;
         public static volatile bool Hotkeys = true, TouchMouse;
-        public static double TouchSens = 1.0;
+        public static TouchConfig Touch = new TouchConfig();   // touchpad-as-mouse behaviour (a Pro input profile can bring its own)
         public static int IdleDimMin = 10, IdleOffMin = 30;   // 0 — off
 
         static readonly Stopwatch clock = Stopwatch.StartNew();

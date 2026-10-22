@@ -1,10 +1,71 @@
 // Controller touchpad as a mouse: one finger — cursor, two fingers — scroll, touchpad click — left button (with two fingers — right).
+// Optional (TouchConfig): tap to click, double-tap drag, trackball glide, jitter compensation, absolute mode, inverted axes.
 // Called from the controller's read thread after the report has been forwarded to the virtual pad.
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace Glowstick
 {
+    // How the touchpad drives the mouse. The global one is Engine.Touch; a Pro input profile can bring its own.
+    public class TouchConfig
+    {
+        public bool Absolute;              // the pad maps to the whole screen instead of moving the cursor relatively
+        public double Sens = 1.0;          // 0.2 .. 4
+        public bool Accel = true;          // slow — precise, fast — far
+        public bool Jitter = true;         // smooth out the sensor's 1-unit wobble
+        public bool TapClick;              // a short tap = left click (two-finger tap = right click)
+        public bool TapDrag;               // tap, then touch again and move = drag with the left button held
+        public bool Scroll = true;         // two fingers scroll (vertically and horizontally)
+        public double ScrollSens = 1.0;    // 0.2 .. 4
+        public bool NaturalScroll;         // content follows the fingers
+        public bool Trackball;             // the cursor keeps gliding after a flick
+        public double Friction = 0.5;      // 0 .. 1 — how quickly the glide stops
+        public bool InvertX, InvertY;
+        public bool RightHalfClick;        // clicking the right half of the pad = right button
+
+        public TouchConfig Clone() { return (TouchConfig)MemberwiseClone(); }
+
+        public Dictionary<string, object> Save()
+        {
+            return new Dictionary<string, object>
+            {
+                { "Absolute", Absolute }, { "Sens", Sens }, { "Accel", Accel }, { "Jitter", Jitter }, { "TapClick", TapClick }, { "TapDrag", TapDrag },
+                { "Scroll", Scroll }, { "ScrollSens", ScrollSens }, { "NaturalScroll", NaturalScroll }, { "Trackball", Trackball }, { "Friction", Friction },
+                { "InvertX", InvertX }, { "InvertY", InvertY }, { "RightHalfClick", RightHalfClick }
+            };
+        }
+
+        public static TouchConfig Load(object o)
+        {
+            TouchConfig c = new TouchConfig();
+            Dictionary<string, object> d = o as Dictionary<string, object>;
+            if (d == null) return c;
+            object v;
+            try
+            {
+                if (d.TryGetValue("Absolute", out v)) c.Absolute = Convert.ToBoolean(v);
+                if (d.TryGetValue("Sens", out v)) c.Sens = Clamp(Convert.ToDouble(v), 0.2, 4);
+                if (d.TryGetValue("Accel", out v)) c.Accel = Convert.ToBoolean(v);
+                if (d.TryGetValue("Jitter", out v)) c.Jitter = Convert.ToBoolean(v);
+                if (d.TryGetValue("TapClick", out v)) c.TapClick = Convert.ToBoolean(v);
+                if (d.TryGetValue("TapDrag", out v)) c.TapDrag = Convert.ToBoolean(v);
+                if (d.TryGetValue("Scroll", out v)) c.Scroll = Convert.ToBoolean(v);
+                if (d.TryGetValue("ScrollSens", out v)) c.ScrollSens = Clamp(Convert.ToDouble(v), 0.2, 4);
+                if (d.TryGetValue("NaturalScroll", out v)) c.NaturalScroll = Convert.ToBoolean(v);
+                if (d.TryGetValue("Trackball", out v)) c.Trackball = Convert.ToBoolean(v);
+                if (d.TryGetValue("Friction", out v)) c.Friction = Clamp(Convert.ToDouble(v), 0, 1);
+                if (d.TryGetValue("InvertX", out v)) c.InvertX = Convert.ToBoolean(v);
+                if (d.TryGetValue("InvertY", out v)) c.InvertY = Convert.ToBoolean(v);
+                if (d.TryGetValue("RightHalfClick", out v)) c.RightHalfClick = Convert.ToBoolean(v);
+            }
+            catch { }
+            return c;
+        }
+
+        static double Clamp(double v, double lo, double hi) { return Math.Max(lo, Math.Min(hi, v)); }
+    }
+
     internal class Touchpad
     {
         [StructLayout(LayoutKind.Sequential)]
@@ -15,59 +76,129 @@ namespace Glowstick
 
         [DllImport("user32.dll")] static extern int SendInput(int n, INPUT[] inputs, int size);
 
-        const int MOVE = 0x1, LEFTDOWN = 0x2, LEFTUP = 0x4, RIGHTDOWN = 0x8, RIGHTUP = 0x10, WHEEL = 0x800;
+        internal const int MOVE = 0x1, LEFTDOWN = 0x2, LEFTUP = 0x4, RIGHTDOWN = 0x8, RIGHTUP = 0x10, WHEEL = 0x800, HWHEEL = 0x1000,
+            ABSOLUTE = 0x8000, VIRTUALDESK = 0x4000;
+        const int TapMs = 200, TapMove = 60, DragWindowMs = 250;
 
-        bool had1, had2, clickDown, clickRight;
+        // Where the mouse events go — SendInput; tests swap it for a recorder (dx, dy, data, flags)
+        internal Action<int, int, int, int> Output = Send;
+
+        bool had1, had2, clickDown, clickRight, dragDown;
         byte id1;
-        int x1, y1, scrollY;
-        double accX, accY, accWheel;
+        int x1, y1, scrollX, scrollY;
+        double sx, sy;                     // smoothed finger position (jitter compensation)
+        double accX, accY, accWheel, accHWheel;
+        // taps
+        long touchStart, lastTapEnd = -100000, lastMs;
+        int tapTravel, maxFingers;
+        bool tapCandidate;
+        // trackball glide (mouse px per ms)
+        double velX, velY;
+        bool gliding;
 
-        public void Process(ref Pad p)
+        public void Process(ref Pad p, TouchConfig c, long now)
         {
+            long dt = lastMs == 0 ? 4 : Math.Max(1, Math.Min(50, now - lastMs));
+            lastMs = now;
+            int fingers = (p.Touch1 ? 1 : 0) + (p.Touch2 ? 1 : 0);
+
+            // Physical click
             bool click = (p.Buttons & Btn.Touch) != 0;
             if (click != clickDown)
             {
                 clickDown = click;
-                if (click) clickRight = p.Touch2;   // the button is chosen at the moment of the press
-                Send(0, 0, 0, click ? (clickRight ? RIGHTDOWN : LEFTDOWN) : (clickRight ? RIGHTUP : LEFTUP));
+                if (click) clickRight = p.Touch2 || (c.RightHalfClick && p.Touch1 && p.T1X > Pad.TouchW / 2);   // the button is chosen at the moment of the press
+                Output(0, 0, 0, click ? (clickRight ? RIGHTDOWN : LEFTDOWN) : (clickRight ? RIGHTUP : LEFTUP));
+                tapCandidate = false;   // a real click is not a tap
+            }
+
+            // Taps: a short touch that barely moved
+            if (fingers > 0 && !had1 && !had2)
+            {
+                touchStart = now; tapTravel = 0; maxFingers = fingers; tapCandidate = c.TapClick && !click;
+                gliding = false; velX = velY = 0;
+                if (c.TapDrag && c.TapClick && now - lastTapEnd < DragWindowMs && fingers == 1 && !dragDown) { dragDown = true; Output(0, 0, 0, LEFTDOWN); tapCandidate = false; }
+            }
+            if (fingers > maxFingers) maxFingers = fingers;
+            if (fingers == 0 && (had1 || had2))
+            {
+                if (dragDown) { dragDown = false; Output(0, 0, 0, LEFTUP); }
+                else if (tapCandidate && now - touchStart <= TapMs && tapTravel < TapMove)
+                {
+                    bool right = maxFingers >= 2;
+                    Output(0, 0, 0, right ? RIGHTDOWN : LEFTDOWN);
+                    Output(0, 0, 0, right ? RIGHTUP : LEFTUP);
+                    if (!right) lastTapEnd = now;
+                }
+                if (c.Trackball && !c.Absolute && had1 && Math.Abs(velX) + Math.Abs(velY) > 0.15) gliding = true;
             }
 
             if (p.Touch1 && p.Touch2)
             {
-                int y = (p.T1Y + p.T2Y) / 2;
-                if (had2)
+                int y = (p.T1Y + p.T2Y) / 2, x = (p.T1X + p.T2X) / 2;
+                if (had2 && c.Scroll)
                 {
-                    accWheel += (scrollY - y) * 2.5 * Engine.TouchSens;
-                    int w = (int)accWheel;
-                    if (w != 0) { accWheel -= w; Send(0, 0, w, WHEEL); }
+                    double dir = c.NaturalScroll ? -1 : 1;
+                    accWheel += (scrollY - y) * 2.5 * c.ScrollSens * dir;
+                    accHWheel += (x - scrollX) * 2.5 * c.ScrollSens * dir;
+                    tapTravel += Math.Abs(scrollY - y) + Math.Abs(x - scrollX);
+                    int w = (int)accWheel, h = (int)accHWheel;
+                    if (w != 0) { accWheel -= w; Output(0, 0, w, WHEEL); }
+                    if (h != 0) { accHWheel -= h; Output(0, 0, h, HWHEEL); }
                 }
-                scrollY = y; had2 = true; had1 = false;
+                scrollY = y; scrollX = x; had2 = true; had1 = false;
                 return;
             }
-            had2 = false; accWheel = 0;
+            had2 = false; accWheel = accHWheel = 0;
 
             if (p.Touch1)
             {
-                if (had1 && p.T1Id == id1)
+                if (c.Absolute)
                 {
-                    int dx = p.T1X - x1, dy = p.T1Y - y1;
-                    double speed = Math.Sqrt(dx * dx + dy * dy);
-                    double k = Engine.TouchSens * (0.35 + Math.Min(1.6, speed / 14));   // acceleration: slow — precise, fast — far
-                    accX += dx * k; accY += dy * k;
-                    int mx = (int)accX, my = (int)accY;
-                    if (mx != 0 || my != 0) { accX -= mx; accY -= my; Send(mx, my, 0, MOVE); }
+                    int ax = c.InvertX ? Pad.TouchW - 1 - p.T1X : p.T1X, ay = c.InvertY ? Pad.TouchH - 1 - p.T1Y : p.T1Y;
+                    Output(ax * 65535 / (Pad.TouchW - 1), ay * 65535 / (Pad.TouchH - 1), 0, MOVE | ABSOLUTE | VIRTUALDESK);
                 }
-                else { accX = accY = 0; }
+                else if (had1 && p.T1Id == id1)
+                {
+                    double nx = c.Jitter ? sx + (p.T1X - sx) * 0.5 : p.T1X, ny = c.Jitter ? sy + (p.T1Y - sy) * 0.5 : p.T1Y;
+                    double dx = nx - sx, dy = ny - sy;
+                    sx = nx; sy = ny;
+                    tapTravel += Math.Abs(p.T1X - x1) + Math.Abs(p.T1Y - y1);
+                    if (c.Jitter && Math.Abs(dx) < 0.75 && Math.Abs(dy) < 0.75) { dx = 0; dy = 0; }
+                    double speed = Math.Sqrt(dx * dx + dy * dy);
+                    double k = c.Sens * (c.Accel ? 0.35 + Math.Min(1.6, speed / 14) : 0.8);
+                    double mx0 = dx * k * (c.InvertX ? -1 : 1), my0 = dy * k * (c.InvertY ? -1 : 1);
+                    velX = velX * 0.6 + mx0 / dt * 0.4; velY = velY * 0.6 + my0 / dt * 0.4;
+                    accX += mx0; accY += my0;
+                    int mx = (int)accX, my = (int)accY;
+                    if (mx != 0 || my != 0) { accX -= mx; accY -= my; Output(mx, my, 0, MOVE); }
+                }
+                else { accX = accY = 0; sx = p.T1X; sy = p.T1Y; velX = velY = 0; }
                 x1 = p.T1X; y1 = p.T1Y; id1 = p.T1Id; had1 = true;
             }
-            else had1 = false;
+            else
+            {
+                had1 = false;
+                if (gliding) Glide(c, dt);
+            }
         }
 
-        // Release the button if the mode was turned off mid-click
+        void Glide(TouchConfig c, long dt)
+        {
+            double decay = Math.Exp(-dt / 1000.0 * (1 + c.Friction * 9));
+            velX *= decay; velY *= decay;
+            if (Math.Abs(velX) + Math.Abs(velY) < 0.02) { gliding = false; return; }
+            accX += velX * dt; accY += velY * dt;
+            int mx = (int)accX, my = (int)accY;
+            if (mx != 0 || my != 0) { accX -= mx; accY -= my; Output(mx, my, 0, MOVE); }
+        }
+
+        // Release the buttons if the mode was turned off mid-click
         public void Reset()
         {
-            if (clickDown) Send(0, 0, 0, clickRight ? RIGHTUP : LEFTUP);
-            clickDown = had1 = had2 = false;
+            if (clickDown) Output(0, 0, 0, clickRight ? RIGHTUP : LEFTUP);
+            if (dragDown) Output(0, 0, 0, LEFTUP);
+            clickDown = had1 = had2 = dragDown = gliding = false;
         }
 
         static void Send(int dx, int dy, int data, int flags)

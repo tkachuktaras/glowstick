@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace Glowstick
 {
@@ -35,6 +36,9 @@ namespace Glowstick
         // before the report is forwarded to the virtual pad. `raw` is the physical report, `send` the one about to be sent
         // (already button-masked for held hotkeys); returns the report to forward (the same array when nothing was remapped).
         public static Func<Controller, byte[], byte[], long, byte[]> MapReport;
+        public static Func<Controller, TouchConfig> TouchFor = null;             // the touchpad settings of the controller's input profile, or null — the global ones
+        public static Func<Controller, double> RumbleScale = null;               // rumble strength multiplier of the controller's input profile
+        public static Action<ContextMenu, string> PadMenu = null;                 // extra items in a controller's tile menu (by id)
 
         public static void Startup()
         {

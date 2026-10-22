@@ -78,6 +78,8 @@ namespace Glowstick
                 m.Items.Add(br);
             }
 
+            if (Pro.Unlocked && Pro.PadMenu != null) Pro.PadMenu(m, id);   // e.g. the controller's input profile
+
             m.Items.Add(new Separator());
             Add(m, Lang.T("Show battery on the light bar"), () => IfPresent(id, () => Engine.ShowBattery(id)));
             MenuItem test = new MenuItem { Header = Lang.T("Controller test…") };

@@ -57,6 +57,7 @@ namespace Glowstick
             FirstRunWhen();
             DragOrder();
             Hotkeys();
+            TouchMouse();
             ProServerAnswers();
             Sta(UiTests);
             Console.WriteLine(string.Format("{0} passed, {1} failed", passed, failed));
@@ -405,6 +406,64 @@ namespace Glowstick
         }
 
         // ---------- PS hotkeys ----------
+        // Touchpad as a mouse: taps, drag, scroll direction, absolute mode, glide, settings round trip
+        static void TouchMouse()
+        {
+            List<int[]> ev = new List<int[]>();
+            Touchpad t = new Touchpad();
+            t.Output = (dx, dy, data, flags) => ev.Add(new[] { dx, dy, data, flags });
+            TouchConfig c = new TouchConfig { TapClick = true, TapDrag = true };
+            Func<bool, int, int, Pad> one = (down, x, y) => new Pad { Touch1 = down, T1X = x, T1Y = y, T1Id = 1 };
+            Func<int, bool> has = f => ev.Exists(e => (e[3] & f) == f);
+
+            long now = 1000;
+            P(t, one(true, 500, 400), c, now); P(t, one(false, 500, 400), c, now += 80);
+            Check(has(Touchpad.LEFTDOWN) && has(Touchpad.LEFTUP), "tap → left click");
+            ev.Clear();
+            P(t, one(true, 500, 400), c, now += 600); P(t, one(false, 500, 400), c, now += 500);
+            Check(!has(Touchpad.LEFTDOWN), "a long touch is not a tap");
+
+            ev.Clear();   // tap, then touch again quickly and slide → drag
+            P(t, one(true, 500, 400), c, now += 1000); P(t, one(false, 500, 400), c, now += 60);
+            ev.Clear();
+            P(t, one(true, 500, 400), c, now += 100);
+            Check(has(Touchpad.LEFTDOWN) && !has(Touchpad.LEFTUP), "double tap → button held for a drag");
+            for (int k = 1; k <= 10; k++) P(t, one(true, 500 + k * 20, 400), c, now += 8);
+            Check(ev.Exists(e => e[3] == Touchpad.MOVE && e[0] > 0), "drag moves the cursor");
+            P(t, one(false, 700, 400), c, now += 8);
+            Check(has(Touchpad.LEFTUP), "lifting ends the drag");
+
+            ev.Clear();   // two fingers up → wheel; natural scrolling flips it
+            Func<int, Pad> two = y => new Pad { Touch1 = true, Touch2 = true, T1X = 400, T2X = 600, T1Y = y, T2Y = y, T1Id = 2, T2Id = 3 };
+            TouchConfig sc = new TouchConfig();
+            P(t, two(600), sc, now += 8); P(t, two(500), sc, now += 8);
+            Check(ev.Exists(e => e[3] == Touchpad.WHEEL && e[2] > 0), "fingers up → wheel up");
+            ev.Clear(); t.Reset();
+            sc.NaturalScroll = true;
+            P(t, two(600), sc, now += 100); P(t, two(500), sc, now += 8);
+            Check(ev.Exists(e => e[3] == Touchpad.WHEEL && e[2] < 0), "natural scrolling → wheel down");
+
+            ev.Clear(); t.Reset();
+            TouchConfig ab = new TouchConfig { Absolute = true };
+            P(t, one(true, Pad.TouchW - 1, 0), ab, now += 100);
+            Check(ev.Exists(e => (e[3] & Touchpad.ABSOLUTE) != 0 && e[0] == 65535 && e[1] == 0), "absolute: right edge → right of the screen");
+
+            ev.Clear(); t.Reset();   // a flick with trackball on keeps moving after the finger lifts
+            TouchConfig tb = new TouchConfig { Trackball = true, Friction = 0.2 };
+            P(t, one(true, 100, 400), tb, now += 100);
+            for (int k = 1; k <= 8; k++) P(t, one(true, 100 + k * 60, 400), tb, now += 4);
+            P(t, one(false, 580, 400), tb, now += 4);
+            int before = ev.Count;
+            for (int k = 0; k < 10; k++) P(t, one(false, 580, 400), tb, now += 4);
+            Check(ev.Count > before, "trackball: glides after lifting");
+
+            TouchConfig r = TouchConfig.Load(new TouchConfig { Sens = 2.5, Trackball = true, InvertY = true, Friction = 0.3 }.Save());
+            Check(r.Sens == 2.5 && r.Trackball && r.InvertY && r.Friction == 0.3, "touch settings round trip");
+            Check(TouchConfig.Load(new Dictionary<string, object> { { "Sens", 99.0 } }).Sens == 4, "touch sensitivity clamped");
+        }
+
+        static void P(Touchpad t, Pad p, TouchConfig c, long now) { t.Process(ref p, c, now); }
+
         static void Hotkeys()
         {
             HotkeyMap.Reset();
