@@ -1,5 +1,5 @@
 // Preset card: the card is lit by the preset itself (a soft glow of what 4 controllers show right now, every frame)
-// with the title over it. Custom presets: double-click or right-click → edit / delete.
+// with the title over it. Right click: the preset's own settings, a copy to edit (built-in) or edit / export / delete (own).
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,7 +16,7 @@ namespace Glowstick
         const double Radius = 8;
         public int Index { get; private set; }
         public Preset Preset { get; private set; }
-        public event Action<PresetCard> Picked, EditRequested, DeleteRequested, ExportRequested;
+        public event Action<PresetCard> Picked, EditRequested, DeleteRequested, ExportRequested, TuneRequested, CopyRequested;
 
         readonly GradientStop[] stops = new GradientStop[Stripes];
         readonly Rectangle glow = new Rectangle { IsHitTestVisible = false };
@@ -68,19 +68,32 @@ namespace Glowstick
             MouseEnter += (s, e) => { hover = true; Paint(); };
             MouseLeave += (s, e) => { hover = false; Paint(); };
             MouseLeftButtonUp += (s, e) => { if (Picked != null) Picked(this); };
+            if (p.Locked) return;
+            // Right click: the preset's own settings (any preset) and a copy to edit (built-in) or edit / export / delete (own).
+            // Without Pro the items carry a lock and lead to Settings → Glowstick Pro.
+            ContextMenu menu = new ContextMenu();
+            bool pro = Glowstick.Pro.Unlocked;
+            Func<string, Action<PresetCard>, MenuItem> item = (text, act) =>
+            {
+                MenuItem mi = new MenuItem { Header = (pro ? "" : "🔒 ") + text };
+                mi.Click += (s, e) => { if (!pro) { if (UiApp.Main != null) UiApp.Main.ShowPro(); } else if (act != null) act(this); };
+                menu.Items.Add(mi);
+                return mi;
+            };
             if (p.Custom != null)
             {
                 MouseLeftButtonDown += (s, e) => { if (e.ClickCount == 2 && EditRequested != null) { EditRequested(this); e.Handled = true; } };
-                ContextMenu menu = new ContextMenu();
-                MenuItem edit = new MenuItem { Header = Lang.T("Edit") };
-                edit.Click += (s, e) => { if (EditRequested != null) EditRequested(this); };
-                MenuItem export = new MenuItem { Header = Lang.T("Export…") };
-                export.Click += (s, e) => { if (ExportRequested != null) ExportRequested(this); };
-                MenuItem del = new MenuItem { Header = Lang.T("Delete") };
-                del.Click += (s, e) => { if (DeleteRequested != null) DeleteRequested(this); };
-                menu.Items.Add(edit); menu.Items.Add(export); menu.Items.Add(del);
-                ContextMenu = menu;
+                item(Lang.T("Edit"), c => { if (EditRequested != null) EditRequested(c); });
+                item(Lang.T("Preset settings…"), c => { if (TuneRequested != null) TuneRequested(c); });
+                item(Lang.T("Export…"), c => { if (ExportRequested != null) ExportRequested(c); });
+                item(Lang.T("Delete"), c => { if (DeleteRequested != null) DeleteRequested(c); });
             }
+            else
+            {
+                item(Lang.T("Preset settings…"), c => { if (TuneRequested != null) TuneRequested(c); });
+                item(Lang.T("Edit a copy…"), c => { if (CopyRequested != null) CopyRequested(c); });
+            }
+            ContextMenu = menu;
         }
 
         public bool Selected

@@ -90,6 +90,14 @@ namespace Glowstick
             running = false;
             Fullscreen.Stop();
             if (worker != null) worker.Join(3000);
+            // Closing: controllers go back to the standard player color (as on a PS4 — 1 blue, 2 red, 3 green, 4 pink), not the last preset's
+            Controller[] arr; lock (Lock) arr = Devices.ToArray();
+            int[] players = { 0x0030FF, 0xFF0000, 0x00FF00, 0xFF0080 };
+            for (int i = 0; i < arr.Length; i++)
+            {
+                Rgb c = Rgb.Hex(players[i % players.Length]);
+                try { arr[i].Send((int)c.R, (int)c.G, (int)c.B); } catch { }
+            }
             ReleaseAll();
             if (IsAdmin && HidHide.Installed) HidHide.Release();
             if (client != null) { try { client.Dispose(); } catch { } client = null; }
@@ -333,6 +341,7 @@ namespace Glowstick
                     lock (Lock) foreach (Controller d in Devices) d.TickRate();
                 }
                 T += dt * Speed;
+                frame++;
 
                 KeyValuePair<Controller, HotAction> hk;
                 while (hotkeys.TryDequeue(out hk)) try { DoHotkey(hk.Key, hk.Value); } catch (Exception e) { Log.Error("hotkey", e); }
@@ -355,13 +364,16 @@ namespace Glowstick
                     Preset named = own != null ? ps.Find(x => x.Name == own) : null;
                     Preset pr = d.ApiPreset ?? named ?? apiGlobal ?? global;
                     if (pr.Locked) pr = ps.Find(x => !x.Locked) ?? pr;   // e.g. saved by Pro, then Pro was locked
+                    PresetTune tune = Pro.Unlocked ? PresetTunes.Get(pr.Name) : null;   // the preset's own brightness / speed / music settings
+                    Live.Tune = tune;
                     Rgb c;
-                    try { c = pr.Fn(T, i, n).Clamp(); } catch { c = new Rgb(0, 0, 0); }
+                    try { c = pr.Fn(PresetTime(pr, tune, dt, frame), i, n).Clamp(); } catch { c = new Rgb(0, 0, 0); }
                     d.Fade = Math.Min(1, d.Fade + dt / 0.4);
                     if (d.Fade < 1) c = Rgb.Lerp(d.FadeFrom, c, PresetLib.Smooth(d.Fade));
                     d.Current = c;
                     c = Overlays(d, st, c, nowMs, dt);
-                    Rgb o = c.Mul(Brightness * d.Dim * d.PadBrightness).Clamp(); d.Out = o;
+                    double bright = tune != null && !double.IsNaN(tune.Brightness) ? tune.Brightness : Brightness;
+                    Rgb o = c.Mul(bright * d.Dim * d.PadBrightness).Clamp(); d.Out = o;
                     int r = (int)Math.Round(o.R), g = (int)Math.Round(o.G), b = (int)Math.Round(o.B);
                     long since = ms - d.LastSendMs;
                     bool changed = r != d.LR || g != d.LG || b != d.LB;
@@ -377,6 +389,23 @@ namespace Glowstick
         }
 
         static readonly byte[] lastRaw = new byte[63];
+
+        // A preset with its own speed runs on its own clock (started from the shared one, so the switch doesn't jump);
+        // every controller on that preset shares it, and it advances once a frame. Light bar thread only.
+        static readonly Dictionary<string, double> ownTime = new Dictionary<string, double>();
+        static readonly Dictionary<string, long> ownFrame = new Dictionary<string, long>();
+        static long frame;
+
+        static double PresetTime(Preset p, PresetTune tune, double dt, long f)
+        {
+            if (tune == null || double.IsNaN(tune.Speed)) { if (ownTime.Count > 0) ownTime.Remove(p.Name); return T; }   // own speed off: back on the shared clock
+            double t;
+            if (!ownTime.TryGetValue(p.Name, out t)) t = T;
+            long last;
+            if (!ownFrame.TryGetValue(p.Name, out last) || last != f) { t += dt * tune.Speed; ownFrame[p.Name] = f; }
+            ownTime[p.Name] = t;
+            return t;
+        }
 
         // A controller takes on its profile's light bar settings every frame, so a game or a profile switch applies at once:
         // a new own preset fades in, the virtual pad becomes the other kind when the output changes
@@ -434,8 +463,15 @@ namespace Glowstick
             }
             if (a == HotAction.Brighter || a == HotAction.Dimmer)
             {
-                double v = Math.Round(Brightness * 10 + (a == HotAction.Brighter ? 1 : -1)) / 10;
-                Brightness = Math.Max(0.1, Math.Min(1, v));
+                // A preset with its own brightness: that one changes (the global one wouldn't show)
+                List<Preset> ps = Presets;
+                string own = d.OwnPreset;
+                string name = own ?? ps[Math.Max(0, Math.Min(PresetIndex, ps.Count - 1))].Name;
+                PresetTune tune = Pro.Unlocked ? PresetTunes.Get(name) : null;
+                double cur = tune != null && !double.IsNaN(tune.Brightness) ? tune.Brightness : Brightness;
+                double v = Math.Max(0.1, Math.Min(1, Math.Round(cur * 10 + (a == HotAction.Brighter ? 1 : -1)) / 10));
+                if (tune != null && !double.IsNaN(tune.Brightness)) { PresetTune t = tune.Clone(); t.Brightness = v; PresetTunes.Set(name, t); }
+                else Brightness = v;
                 Settings.Save();
             }
             if (a == HotAction.ShowBattery) d.BatteryShowUntil = Ms + 3000;

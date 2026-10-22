@@ -59,6 +59,7 @@ namespace Glowstick
             Hotkeys();
             TouchMouse();
             MusicLevel();
+            AudioBands();
             Hardening();
             PadPieces();
             ProServerAnswers();
@@ -377,6 +378,46 @@ namespace Glowstick
             Check(Math.Abs(quiet[0] - loud[0]) < 0.1 && Math.Abs(quiet[1] - loud[1]) < 0.1, "music: a quiet song pumps like a loud one");
             Check(strong[1] < loud[1] * 0.5 && soft[1] > loud[1] * 1.5 && strong[0] > 0.75, "music: reaction strength — stronger is clearly darker between the hits, softer brighter (" +
                 soft[1].ToString("0.00") + " / " + loud[1].ToString("0.00") + " / " + strong[1].ToString("0.00") + ")");
+        }
+
+        // Frequency bands for music presets: a 60 Hz tone (a kick / bass) passes the bass band and not the highs, an 8 kHz one
+        // (a hi-hat) the other way round; the loopback samples become mono; a preset's own settings round trip and follow a rename
+        static void AudioBands()
+        {
+            const int Rate = 48000;
+            Func<double, double, double, double> through = (hz, lo, hi) =>
+            {
+                BandFilter b = new BandFilter(lo, hi);
+                float[] x = new float[Rate / 2];
+                for (int k = 0; k < x.Length; k++) x[k] = (float)(0.5 * Math.Sin(2 * Math.PI * hz * k / Rate));
+                b.Process(x, x.Length, Rate);   // settle
+                b.Take();
+                b.Process(x, x.Length, Rate);
+                return b.Take();
+            };
+            double lo, hi;
+            MusicBands.Range("bass", 0, 0, out lo, out hi);
+            double bassKick = through(60, lo, hi), bassHat = through(8000, lo, hi);
+            MusicBands.Range("high", 0, 0, out lo, out hi);
+            double highKick = through(60, lo, hi), highHat = through(8000, lo, hi);
+            Check(bassKick > 0.4 && bassHat < 0.02, "bass band: 60 Hz passes (" + bassKick.ToString("0.00") + "), 8 kHz doesn't (" + bassHat.ToString("0.000") + ")");
+            Check(highHat > 0.4 && highKick < 0.02, "highs band: 8 kHz passes (" + highHat.ToString("0.00") + "), 60 Hz doesn't (" + highKick.ToString("0.000") + ")");
+
+            byte[] raw = new byte[8];   // two 16-bit stereo frames: (16384, 0) and (-32768, -32768)
+            BitConverter.GetBytes((short)16384).CopyTo(raw, 0); BitConverter.GetBytes((short)0).CopyTo(raw, 2);
+            BitConverter.GetBytes((short)-32768).CopyTo(raw, 4); BitConverter.GetBytes((short)-32768).CopyTo(raw, 6);
+            float[] mono = new float[2];
+            AudioCapture.ToMono(raw, 2, 2, 16, false, mono);
+            Check(Math.Abs(mono[0] - 0.25) < 1e-6 && Math.Abs(mono[1] + 1) < 1e-6, "16-bit stereo → mono");
+
+            PresetTunes.Set("Fire", new PresetTune { Brightness = 0.4, Band = "custom", Low = 50, High = 120 });
+            PresetTunes.Load(PresetTunes.Save());
+            PresetTune t = PresetTunes.Get("Fire");
+            Check(t != null && t.Brightness == 0.4 && double.IsNaN(t.Speed) && t.Band == "custom" && t.Low == 50 && t.High == 120, "a preset's own settings round trip (unset stays unset)");
+            PresetTunes.Rename("Fire", "Fire 2");
+            Check(PresetTunes.Get("Fire") == null && PresetTunes.Get("Fire 2") != null, "a preset's own settings follow a rename");
+            PresetTunes.Set("Fire 2", new PresetTune());
+            Check(PresetTunes.Get("Fire 2") == null, "nothing own left → the entry goes");
         }
 
         static void UpdateSwap()

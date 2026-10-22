@@ -2,6 +2,7 @@
 // A preset only gets (t, i, n), so before calling it the engine puts here the controller the color is computed for.
 // Outside the engine (list thumbnails) Cur == null — presets draw a demo.
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -38,25 +39,43 @@ namespace Glowstick
         interface IAudioMeterInformation { [PreserveSig] int GetPeakValue(out float peak); }
 
         static IAudioMeterInformation meter;
-        static double meterAt = -10, audioAt;
-        static readonly AudioState audio = new AudioState();
+        static double meterAt = -10;
+        static readonly Dictionary<string, AudioState> audio = new Dictionary<string, AudioState>();   // light bar thread only
 
-        // How strongly music presets react (Pro, settings.json "MusicReaction"): 0.5 — soft, 1 — normal, up to 3 — only the hits light up
-        public static double MusicReaction = 1.0;
+        // App-wide music settings (Pro, settings.json "MusicReaction", "MusicBand", "MusicLow/High"); a preset can have its own (PresetTune)
+        public static double MusicReaction = 1.0;     // 0.5 — soft, 1 — normal, up to 3 — only the hits light up
+        public static string MusicBand = "bass";      // MusicBands.Ids
+        public static double MusicLow = 30, MusicHigh = 150;
 
-        // Level 0..1 for music presets. Polled at most once every 8 ms.
+        // The preset being drawn: its own reaction and band (Engine sets them before calling the preset), else the app-wide ones
+        [ThreadStatic] public static PresetTune Tune;
+
+        // Level 0..1 for music presets. Polled at most once every 8 ms per band and reaction.
         public static double Audio()
         {
+            PresetTune t = Tune;
+            double reaction = t != null && !double.IsNaN(t.Reaction) ? t.Reaction : MusicReaction;
+            double lo, hi;
+            if (t != null && t.Band != "") MusicBands.Range(t.Band, t.Low, t.High, out lo, out hi);
+            else MusicBands.Range(MusicBand, MusicLow, MusicHigh, out lo, out hi);
+            string key = lo + "-" + hi + "-" + reaction;
+            AudioState s;
+            if (!audio.TryGetValue(key, out s)) { if (audio.Count > 32) audio.Clear(); s = new AudioState(); audio[key] = s; }   // a slider being dragged makes new ones
             double now = clock.Elapsed.TotalSeconds;
-            if (now - audioAt < 0.008) return audio.Level;
-            double dt = Math.Min(0.1, now - audioAt); audioAt = now;
-            if (meter == null || now - meterAt > 5) OpenMeter(now);   // every 5 s — in case the output device changed
-            float peak = 0;
-            try { if (meter != null && meter.GetPeakValue(out peak) != 0) peak = 0; } catch { meter = null; }
-            return AudioStep(audio, peak, dt, MusicReaction);
+            if (now - s.At < 0.008) return s.Level;
+            double dt = Math.Min(0.1, now - s.At); s.At = now;
+            double peak = hi > 0 ? AudioCapture.Peak(lo, hi) : -1;   // a frequency band — from the loopback capture
+            if (peak < 0)   // all of the sound, or the capture doesn't work here — the device's peak meter
+            {
+                if (meter == null || now - meterAt > 5) OpenMeter(now);   // every 5 s — in case the output device changed
+                float p = 0;
+                try { if (meter != null && meter.GetPeakValue(out p) != 0) p = 0; } catch { meter = null; }
+                peak = p;
+            }
+            return AudioStep(s, peak, dt, reaction);
         }
 
-        internal sealed class AudioState { public double Level, Avg, Max = 0.1; }
+        internal sealed class AudioState { public double Level, Avg, Max = 0.1, At; }
 
         // Music is mostly loud all the time (mastering squeezes it), so the peak against the loudest recent moment hardly moves.
         // What the eye follows is how far this moment stands out above the song's running loudness — beats and accents:

@@ -50,6 +50,10 @@ namespace Glowstick
                 if (s.TryGetValue("Brightness", out v)) Engine.Brightness = Convert.ToDouble(v);
                 if (s.TryGetValue("Speed", out v)) Engine.Speed = Convert.ToDouble(v);
                 if (s.TryGetValue("MusicReaction", out v)) Live.MusicReaction = Math.Max(0.5, Math.Min(3, Convert.ToDouble(v)));
+                if (s.TryGetValue("MusicBand", out v) && v is string && Array.IndexOf(MusicBands.Ids, (string)v) >= 0) Live.MusicBand = (string)v;
+                if (s.TryGetValue("MusicLow", out v)) Live.MusicLow = Math.Max(20, Math.Min(18000, Convert.ToDouble(v)));
+                if (s.TryGetValue("MusicHigh", out v)) Live.MusicHigh = Math.Max(Live.MusicLow + 10, Math.Min(20000, Convert.ToDouble(v)));
+                if (s.TryGetValue("PresetTune", out v)) PresetTunes.Load(v);
                 if (s.TryGetValue("BtPollMs", out v)) Engine.BtPollMs = Math.Max(0, Math.Min(16, Convert.ToInt32(v)));
                 if (s.TryGetValue("NotifyFlash", out v)) Engine.Defaults.NotifyFlash = Convert.ToBoolean(v);
                 if (s.TryGetValue("Hotkeys", out v)) Engine.Hotkeys = Convert.ToBoolean(v);
@@ -132,6 +136,10 @@ namespace Glowstick
                 s["Brightness"] = Engine.Brightness;
                 s["Speed"] = Engine.Speed;
                 s["MusicReaction"] = Live.MusicReaction;
+                s["MusicBand"] = Live.MusicBand;
+                s["MusicLow"] = Live.MusicLow;
+                s["MusicHigh"] = Live.MusicHigh;
+                s["PresetTune"] = PresetTunes.Save();
                 s.Remove("GameMode"); s.Remove("VirtualPad");   // game mode is always on, the virtual pad is always a DS4
                 s["BtPollMs"] = Engine.BtPollMs;
                 s["NotifyFlash"] = Engine.Defaults.NotifyFlash;

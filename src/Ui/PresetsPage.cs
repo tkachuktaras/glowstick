@@ -19,6 +19,7 @@ namespace Glowstick
         public event Action<string> TileClicked;               // controller id
         public event Action NewRequested, ImportRequested;
         public event Action<Preset> EditRequested, DeleteRequested, ExportRequested;   // the user's own presets (Pro)
+        public event Action<Preset> TuneRequested, CopyRequested;   // any preset's own settings; a copy of a built-in one to edit (Pro)
 
         public readonly TileRow Tiles = new TileRow();
         readonly WrapPanel chips = new WrapPanel { Margin = new Thickness(0, 14, 0, 6) };
@@ -29,7 +30,10 @@ namespace Glowstick
         readonly TextBlock lblBright = new TextBlock(), lblSpeed = new TextBlock();
         readonly Slider music = new Slider { Minimum = 50, Maximum = 300 };   // music reaction (Pro, with a music preset)
         readonly TextBlock lblMusic = new TextBlock();
-        readonly StackPanel musicRow = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+        readonly Grid musicRow = new Grid { Margin = new Thickness(0, 10, 0, 0) };
+        readonly ComboBox band = new ComboBox();   // which frequencies music presets follow (app-wide; a preset can have its own)
+        static readonly string[] Bands = { "bass", "mid", "high", "all" };
+        readonly TextBlock ownNote = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };   // the chosen preset has its own settings
         readonly AnimClock clock = new AnimClock();
         readonly string group = "chips" + Guid.NewGuid().ToString("N");
 
@@ -74,10 +78,25 @@ namespace Glowstick
             right.Children.Add(lblSpeed); right.Children.Add(speed);
             Grid.SetColumn(right, 2);
             g.Children.Add(left); g.Children.Add(right);
-            musicRow.Children.Add(lblMusic); musicRow.Children.Add(music);
+            // Music (Pro, with a music preset): the reaction strength and the frequencies, side by side like the row above
+            musicRow.ColumnDefinitions.Add(new ColumnDefinition());
+            musicRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+            musicRow.ColumnDefinitions.Add(new ColumnDefinition());
+            StackPanel mLeft = new StackPanel(), mRight = new StackPanel();
+            mLeft.Children.Add(lblMusic); mLeft.Children.Add(music);
+            mRight.Children.Add(new TextBlock { Text = Lang.T("Music presets follow:") });
+            foreach (string b in Bands) band.Items.Add(MusicBands.Title(b));
+            band.SelectedIndex = Math.Max(0, Array.IndexOf(Bands, Live.MusicBand));
+            band.SelectionChanged += (s, e) => { if (band.SelectedIndex >= 0) { Live.MusicBand = Bands[band.SelectedIndex]; Settings.Save(); } };
+            band.Margin = new Thickness(0, 4, 0, 0);
+            mRight.Children.Add(band);
+            Grid.SetColumn(mRight, 2);
+            musicRow.Children.Add(mLeft); musicRow.Children.Add(mRight);
             Grid.SetRow(musicRow, 1); Grid.SetColumnSpan(musicRow, 3);
-            g.RowDefinitions.Add(new RowDefinition()); g.RowDefinitions.Add(new RowDefinition());
-            g.Children.Add(musicRow);
+            ownNote.Style = Theme.Style("MutedText");
+            Grid.SetRow(ownNote, 2); Grid.SetColumnSpan(ownNote, 3);
+            g.RowDefinitions.Add(new RowDefinition()); g.RowDefinitions.Add(new RowDefinition()); g.RowDefinitions.Add(new RowDefinition());
+            g.Children.Add(musicRow); g.Children.Add(ownNote);
 
             bright.Value = Math.Round(Engine.Brightness * 100);
             speed.Value = Math.Round(Engine.Speed * 100);
@@ -103,12 +122,26 @@ namespace Glowstick
             lblMusic.Text = Lang.F("Music reaction: {0}% (more — only the hits light up)", (int)Math.Round(music.Value));
         }
 
-        // The music reaction slider: only with a music preset chosen, and only in Pro (music presets are Pro)
+        // The music settings: only with a music preset chosen, and only in Pro (music presets are Pro). The sliders here are
+        // the app-wide values; a preset's own ones (Preset settings) win — the note under them says which.
         void ShowMusic()
         {
             List<Preset> ps = Engine.Presets;
             Preset cur = ps[Math.Max(0, Math.Min(Engine.PresetIndex, ps.Count - 1))];
             musicRow.Visibility = Pro.Unlocked && cur.Music ? Visibility.Visible : Visibility.Collapsed;
+            PresetTune t = Pro.Unlocked ? PresetTunes.Get(cur.Name) : null;
+            string note = "";
+            if (t != null)
+            {
+                List<string> own = new List<string>();
+                if (!double.IsNaN(t.Brightness)) own.Add(Lang.F("brightness {0}%", (int)Math.Round(t.Brightness * 100)));
+                if (!double.IsNaN(t.Speed)) own.Add(Lang.F("speed {0}%", (int)Math.Round(t.Speed * 100)));
+                if (!double.IsNaN(t.Reaction)) own.Add(Lang.F("music reaction {0}%", (int)Math.Round(t.Reaction * 100)));
+                if (t.Band != "") own.Add(t.Band == "custom" ? Lang.F("{0}–{1} Hz", (int)t.Low, (int)t.High) : MusicBands.Title(t.Band));
+                note = Lang.F("“{0}” has its own settings: {1}. They win over the sliders here; right-click the preset → Preset settings to change them.", cur.Title, string.Join(", ", own));
+            }
+            if (ownNote.Text != note) ownNote.Text = note;
+            ownNote.Visibility = note == "" ? Visibility.Collapsed : Visibility.Visible;
         }
 
         // ---------- chips and grid ----------
@@ -147,6 +180,8 @@ namespace Glowstick
                 card.EditRequested += c => { if (EditRequested != null) EditRequested(c.Preset); };
                 card.DeleteRequested += c => { if (DeleteRequested != null) DeleteRequested(c.Preset); };
                 card.ExportRequested += c => { if (ExportRequested != null) ExportRequested(c.Preset); };
+                card.TuneRequested += c => { if (TuneRequested != null) TuneRequested(c.Preset); };
+                card.CopyRequested += c => { if (CopyRequested != null) CopyRequested(c.Preset); };
                 cards.Add(card);
                 grid.Children.Add(card);
             }
