@@ -43,9 +43,10 @@ namespace Glowstick
 
             if (!admin)
             {
-                // Without UAC — through our own scheduled task; if it doesn't exist yet — a regular UAC prompt
+                // Without UAC — through our own scheduled task, which starts the protected copy in Program Files (if that copy
+                // isn't older than this exe); otherwise — a regular UAC prompt, and the elevated run refreshes the copy
                 string task = tray ? Autostart.LogonTask : Autostart.UiTask;
-                if (Autostart.PointsHere(task) && Autostart.RunTask(task)) return;
+                if (Autostart.PointsHere(task) && Installer.InstalledIsUsable() && Autostart.RunTask(task)) return;
                 try
                 {
                     ProcessStartInfo psi = new ProcessStartInfo(Application.ExecutablePath, tray ? "-Tray" : "");
@@ -83,7 +84,15 @@ namespace Glowstick
             {
                 ThreadPool.QueueUserWorkItem(_ =>
                 {
+                    Autostart.Target = Installer.Ensure();
                     Autostart.MigrateOld();
+                    if (Autostart.Target == null)
+                    {
+                        // No protected copy: a task pointing at a replaceable exe would be a way around UAC — remove them
+                        Autostart.Delete(Autostart.UiTask);
+                        if (Autostart.Exists(Autostart.LogonTask)) { Autostart.Delete(Autostart.LogonTask); Log.Info("autostart removed: no protected copy"); }
+                        return;
+                    }
                     if (!Autostart.PointsHere(Autostart.UiTask)) Autostart.Create(Autostart.UiTask, false, null);
                     if (Autostart.Exists(Autostart.LogonTask) && !Autostart.PointsHere(Autostart.LogonTask)) Autostart.Create(Autostart.LogonTask, true, "-Tray");
                 });

@@ -115,6 +115,7 @@ namespace Glowstick
         // After an update the previous exe is still lying next to us
         public static void DeleteOld()
         {
+            try { File.Delete(Assembly.GetExecutingAssembly().Location + ".download"); } catch { }   // a download that never finished
             string old = Assembly.GetExecutingAssembly().Location + ".old";
             for (int k = 0; k < 10 && File.Exists(old); k++)
             {
@@ -183,15 +184,16 @@ namespace Glowstick
         }
 
         // Downloads and checks the new exe (background thread). done(path, null) — ready to swap; done(null, error) — failed.
+        // The file goes next to the running exe, not to %TEMP%: what was checked is what gets swapped in — nothing that can
+        // write to %TEMP% can replace it between the check and the swap (the protected copy lives in Program Files).
         public static void DownloadAsync(UpdateInfo u, Action<string, string> done)
         {
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 try
                 {
-                    string dir = Path.Combine(Path.GetTempPath(), "Glowstick_update");
-                    Directory.CreateDirectory(dir);
-                    string file = Path.Combine(dir, ExeName);
+                    string file = Assembly.GetExecutingAssembly().Location + ".download";
+                    if (File.Exists(file)) File.Delete(file);
                     string want;
                     if (u.FromProServer) { ProServer.Download(u, file); want = u.Sha256; }
                     else

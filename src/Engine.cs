@@ -27,9 +27,11 @@ namespace Glowstick
         static volatile List<Preset> presets = new List<Preset>(BuiltIn);
         // Custom + built-in presets. The list is never changed in place — it's replaced as a whole (ReplacePresets)
         public static List<Preset> Presets { get { return presets; } }
-        public static double Brightness = 1.0;
-        public static double Speed = 1.0;
-        public static int PresetIndex;
+        // Changed by the UI, the hotkeys (light bar thread) and the local API; read every frame — hence Volatile
+        static double brightness = 1.0, speed = 1.0;
+        public static double Brightness { get { return Volatile.Read(ref brightness); } set { Volatile.Write(ref brightness, value); } }
+        public static double Speed { get { return Volatile.Read(ref speed); } set { Volatile.Write(ref speed, value); } }
+        public static volatile int PresetIndex;
         public static int BtPollMs = 0;
         public static bool IsAdmin;
 
@@ -557,7 +559,7 @@ namespace Glowstick
                     twin.Dispose();
                 }
                 c.BtPollMs = BtPollMs;
-                PadConfig oc; if (Pads.TryGetValue(c.Id, out oc)) { if (oc.Output == "Xbox") c.OutputKind = "Xbox"; c.PadBrightness = oc.Brightness; }
+                lock (Lock) { PadConfig oc; if (Pads.TryGetValue(c.Id, out oc)) { if (oc.Output == "Xbox") c.OutputKind = "Xbox"; c.PadBrightness = oc.Brightness; } }
                 try { c.Start(hiddenOk ? client : null); } catch (Exception ex) { Log.Error("start " + c.Id, ex); }
                 c.Hidden = hiddenOk;
                 c.NoVirtual = hiddenOk && !c.Virtual;

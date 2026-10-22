@@ -18,6 +18,7 @@ namespace Glowstick
         public static readonly string Dir = Path.Combine(AppData, "Glowstick");
         public static readonly string OldDir = Path.Combine(AppData, "DS4Colors");
         static readonly string FilePath = Path.Combine(Dir, "settings.json");
+        static string BackupPath { get { return FilePath + ".bak"; } }   // the previous good copy (File.Replace keeps it)
 
         public static string StartPreset = "Red + Blue";
         public static bool FirstRun;   // there was no settings.json at start — the first-run setup is shown
@@ -33,8 +34,15 @@ namespace Glowstick
                     Directory.CreateDirectory(Dir);
                     File.Copy(oldFile, FilePath);
                 }
-                if (!File.Exists(FilePath)) { FirstRun = true; Lang.Init(""); return; }
-                Dictionary<string, object> s = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(FilePath, Encoding.UTF8));
+                if (!File.Exists(FilePath) && !File.Exists(BackupPath)) { FirstRun = true; Lang.Init(""); return; }
+                Dictionary<string, object> s = Read(FilePath);
+                if (s == null)
+                {
+                    s = Read(BackupPath);   // the file is damaged (e.g. the PC lost power while writing) — the previous copy
+                    if (s == null) { Log.Info("settings: neither settings.json nor its backup could be read"); Lang.Init(""); return; }
+                    Log.Info("settings: settings.json was damaged — loaded the backup");
+                    mainDamaged = true;
+                }
                 loadedRaw = s;
                 object v;
                 Lang.Init(s.TryGetValue("Language", out v) ? v as string : "");
@@ -81,7 +89,25 @@ namespace Glowstick
         }
 
 
+        static Dictionary<string, object> Read(string path)
+        {
+            try { return File.Exists(path) ? new JavaScriptSerializer { MaxJsonLength = int.MaxValue }.Deserialize<Dictionary<string, object>>(File.ReadAllText(path, Encoding.UTF8)) : null; }
+            catch (Exception e) { Log.Error("settings read " + Path.GetFileName(path), e); return null; }
+        }
+
         static readonly object saveLock = new object();
+        static bool mainDamaged;   // loaded from the backup: the next save must not turn the damaged file into the backup
+        static System.Threading.Timer soon;
+
+        // For changes that come per keystroke (names, macro text): one save half a second after the last change
+        public static void SaveSoon()
+        {
+            lock (saveLock)
+            {
+                if (soon == null) soon = new System.Threading.Timer(_ => Save(), null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+                soon.Change(500, System.Threading.Timeout.Infinite);
+            }
+        }
         // What was read: keys this build doesn't know (the Pro module's, when the free build runs) are written back untouched,
         // so switching between the free and the Pro version loses nothing
         static Dictionary<string, object> loadedRaw;
@@ -128,7 +154,12 @@ namespace Glowstick
                             pads[kv.Key] = new Dictionary<string, object> { { "Name", kv.Value.Name }, { "Preset", kv.Value.Preset }, { "Output", kv.Value.Output }, { "Brightness", kv.Value.Brightness } };
                     s["Pads"] = pads;
                 }
-                File.WriteAllText(FilePath, new JavaScriptSerializer().Serialize(s), new UTF8Encoding(false));
+                // Write a temporary file, then swap it in: a crash or power loss mid-write never leaves a broken settings.json
+                string tmp = FilePath + ".tmp";
+                File.WriteAllText(tmp, new JavaScriptSerializer { MaxJsonLength = int.MaxValue }.Serialize(s), new UTF8Encoding(false));
+                if (mainDamaged) { File.Delete(FilePath); mainDamaged = false; }
+                if (File.Exists(FilePath)) File.Replace(tmp, FilePath, BackupPath, true);
+                else File.Move(tmp, FilePath);
             }
             catch (Exception e) { Log.Error("settings save", e); }
         }

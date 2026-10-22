@@ -82,11 +82,12 @@ The official ViGEmBus 1.22.0 and HidHide 1.5.230 installers are embedded in the 
 | ViGEmBus | `C:\Program Files\Nefarius Software Solutions\ViGEm Bus Driver\` + the driver store |
 | HidHide | `C:\Program Files\Nefarius Software Solutions\HidHide\` + a HID filter driver |
 | Settings and log | `%APPDATA%\Glowstick\` |
+| A protected copy of the exe | `C:\Program Files\Glowstick\Glowstick.exe` |
 | Autostart / start without UAC | Task Scheduler tasks `Glowstick` and `Glowstick UI` |
 
-Administrator rights are needed to control HidHide. UAC appears only on the first launch; after that Glowstick starts itself through its scheduled task.
+Administrator rights are needed to control HidHide. UAC appears only on the first launch; after that Glowstick starts itself through its scheduled task. The task runs a copy of Glowstick kept in Program Files, where only administrators can write — never the exe in your Downloads, which any program could swap. Starting a newer exe asks for UAC once and refreshes that copy. Links and programs Glowstick opens for you (a browser, a “launch” action) start with your normal rights, not administrator ones.
 
-To remove everything: tray → right click → **“Remove drivers and settings…”**. It uninstalls both drivers, deletes the scheduled tasks and `%APPDATA%\Glowstick`, then closes; delete the exe yourself. The drivers can also be removed in “Programs and Features”.
+To remove everything: tray → right click → **“Remove drivers and settings…”**. It uninstalls both drivers, deletes the scheduled tasks, `%APPDATA%\Glowstick` and `C:\Program Files\Glowstick`, then closes; delete the exe you downloaded yourself. The drivers can also be removed in “Programs and Features”.
 
 </details>
 
@@ -101,7 +102,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1        # → dist\Glowstick.e
 powershell -ExecutionPolicy Bypass -File tools\test.ps1   # automated tests
 ```
 
-Only .NET Framework 4.7.2+ is needed — `csc.exe` ships with every Windows 10/11. The project layout and code style are in [CONTRIBUTING.md](CONTRIBUTING.md).
+Only .NET Framework 4.7.2+ is needed. The first build downloads the Roslyn C# compiler (Microsoft's `Microsoft.Net.Compilers.Toolset` NuGet package, pinned by version and SHA-256) into `obj\roslyn` — no Visual Studio or .NET SDK. The project layout and code style are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Contributing
 

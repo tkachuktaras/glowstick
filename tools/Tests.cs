@@ -58,6 +58,7 @@ namespace Glowstick
             DragOrder();
             Hotkeys();
             TouchMouse();
+            Hardening();
             ProServerAnswers();
             Sta(UiTests);
             Console.WriteLine(string.Format("{0} passed, {1} failed", passed, failed));
@@ -406,6 +407,36 @@ namespace Glowstick
         }
 
         // ---------- PS hotkeys ----------
+        // Security / robustness pieces: the protected copy for the elevated tasks, unelevated launches, scan codes
+        static void Hardening()
+        {
+            Version v12 = new Version(1, 2, 0), v13 = new Version(1, 3, 0);
+            Check(Installer.ShouldCopy(v12, "a", null, null), "no protected copy yet → copy");
+            Check(Installer.ShouldCopy(v13, "a", v12, "b"), "newer exe → replaces the protected copy");
+            Check(!Installer.ShouldCopy(v12, "a", v13, "b"), "older exe never replaces a newer protected copy");
+            Check(Installer.ShouldCopy(v12, "a", v12, "b") && !Installer.ShouldCopy(v12, "a", v12, "a"), "same version: copied only if it's a different build");
+            Check(Installer.TaskMayRun(v12, "a", v13, "b") && Installer.TaskMayRun(v12, "a", v12, "a"), "the task may start an equal or newer protected copy");
+            Check(!Installer.TaskMayRun(v13, "a", v12, "b") && !Installer.TaskMayRun(v12, "a", v12, "b") && !Installer.TaskMayRun(v12, "a", null, null),
+                "an older / different / missing copy → UAC instead of the task");
+            Check(Installer.Dir.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), StringComparison.OrdinalIgnoreCase), "the protected copy lives in Program Files");
+
+            string file, args;
+            Shell.Split("\"C:\\Program Files\\OBS\\obs64.exe\" --startrecording", out file, out args);
+            Check(file == @"C:\Program Files\OBS\obs64.exe" && args == "--startrecording", "launch: quoted path + arguments");
+            Shell.Split(@"notepad.exe C:\notes.txt", out file, out args);
+            Check(file == "notepad.exe" && args == @"C:\notes.txt", "launch: program + argument");
+            Shell.Split("https://example.com/a b", out file, out args);
+            Check(file == "https://example.com/a b" && args == "", "launch: a web address stays whole");
+
+            ushort sc; bool ext;
+            InputOut.ScanOf(0x57, out sc, out ext);   // W
+            Check(sc == 0x11 && !ext, "scan code: W = 0x11");
+            InputOut.ScanOf(0x25, out sc, out ext);   // ←
+            Check(sc == 0x4B && ext, "scan code: ← = E0 4B (extended)");
+            InputOut.ScanOf(0x64, out sc, out ext);   // numpad 4
+            Check(sc == 0x4B && !ext, "scan code: numpad 4 = 4B (not extended)");
+        }
+
         // Touchpad as a mouse: taps, drag, scroll direction, absolute mode, glide, settings round trip
         static void TouchMouse()
         {

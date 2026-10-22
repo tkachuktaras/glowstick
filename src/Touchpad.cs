@@ -3,7 +3,6 @@
 // Called from the controller's read thread after the report has been forwarded to the virtual pad.
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 
 namespace Glowstick
 {
@@ -68,20 +67,12 @@ namespace Glowstick
 
     internal class Touchpad
     {
-        [StructLayout(LayoutKind.Sequential)]
-        struct INPUT { public int type; public MOUSEINPUT mi; }
-
-        [StructLayout(LayoutKind.Sequential)]
-        struct MOUSEINPUT { public int dx, dy, mouseData, dwFlags, time; public IntPtr extra; }   // the largest member of the INPUT union
-
-        [DllImport("user32.dll")] static extern int SendInput(int n, INPUT[] inputs, int size);
-
-        internal const int MOVE = 0x1, LEFTDOWN = 0x2, LEFTUP = 0x4, RIGHTDOWN = 0x8, RIGHTUP = 0x10, WHEEL = 0x800, HWHEEL = 0x1000,
-            ABSOLUTE = 0x8000, VIRTUALDESK = 0x4000;
+        internal const int MOVE = InputOut.MOVE, LEFTDOWN = InputOut.LEFTDOWN, LEFTUP = InputOut.LEFTUP, RIGHTDOWN = InputOut.RIGHTDOWN, RIGHTUP = InputOut.RIGHTUP,
+            WHEEL = InputOut.WHEEL, HWHEEL = InputOut.HWHEEL, ABSOLUTE = InputOut.ABSOLUTE, VIRTUALDESK = InputOut.VIRTUALDESK;
         const int TapMs = 200, TapMove = 60, DragWindowMs = 250;
 
-        // Where the mouse events go — SendInput; tests swap it for a recorder (dx, dy, data, flags)
-        internal Action<int, int, int, int> Output = Send;
+        // Where the mouse events go — InputOut (SendInput); tests swap it for a recorder (dx, dy, data, flags)
+        internal Action<int, int, int, int> Output = InputOut.Mouse;
 
         bool had1, had2, clickDown, clickRight, dragDown;
         byte id1;
@@ -199,12 +190,6 @@ namespace Glowstick
             if (clickDown) Output(0, 0, 0, clickRight ? RIGHTUP : LEFTUP);
             if (dragDown) Output(0, 0, 0, LEFTUP);
             clickDown = had1 = had2 = dragDown = gliding = false;
-        }
-
-        static void Send(int dx, int dy, int data, int flags)
-        {
-            INPUT[] inp = { new INPUT { type = 0, mi = new MOUSEINPUT { dx = dx, dy = dy, mouseData = data, dwFlags = flags } } };
-            SendInput(1, inp, Marshal.SizeOf(typeof(INPUT)));
         }
     }
 }

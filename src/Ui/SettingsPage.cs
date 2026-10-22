@@ -46,7 +46,7 @@ namespace Glowstick
             };
             general.Children.Add(auto);
 
-            CheckBox upd = Toggle(general, Lang.T("Check for updates once a day (GitHub Releases; nothing is downloaded by itself)"), Updater.Enabled, v => Updater.Enabled = v);
+            CheckBox upd = Kit.Toggle(general, Lang.T("Check for updates once a day (GitHub Releases; nothing is downloaded by itself)"), Updater.Enabled, v => Updater.Enabled = v);
             upd.IsEnabled = Updater.Available;
             StackPanel buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
             Button check = new Button { Content = Lang.T("Check now"), IsEnabled = Updater.Available, Margin = new Thickness(0, 0, 8, 0) };
@@ -60,16 +60,16 @@ namespace Glowstick
 
             // ---------- light bar ----------
             StackPanel light = Section(Lang.T("Light bar"));
-            Toggle(light, Lang.T("Notification flashes: controller connected — white, low battery — red"), Engine.NotifyFlash, v => Engine.NotifyFlash = v);
-            Toggle(light, Lang.T("DualSense: show the controller number on the player LEDs"), Controller.PlayerLedsOn, v => Controller.PlayerLedsOn = v);
+            Kit.Toggle(light, Lang.T("Notification flashes: controller connected — white, low battery — red"), Engine.NotifyFlash, v => Engine.NotifyFlash = v);
+            Kit.Toggle(light, Lang.T("DualSense: show the controller number on the player LEDs"), Controller.PlayerLedsOn, v => Controller.PlayerLedsOn = v);
             Minutes(light, Lang.T("Turn off the light bar if the controller wasn't touched"), Engine.IdleDimMin, v => Engine.IdleDimMin = v);
 
             // ---------- controller ----------
             StackPanel ctl = Section(Lang.T("Controller"));
             Minutes(ctl, Lang.T("Turn off a Bluetooth controller if it wasn't touched"), Engine.IdleOffMin, v => Engine.IdleOffMin = v);
-            Toggle(ctl, Lang.T("Hotkeys on the controller (hold PS and press):"), Engine.Hotkeys, v => Engine.Hotkeys = v);
+            Kit.Toggle(ctl, Lang.T("Hotkeys on the controller (hold PS and press):"), Engine.Hotkeys, v => Engine.Hotkeys = v);
             ctl.Children.Add(HotkeyTable());
-            touch = Toggle(ctl, Lang.T("Touchpad as mouse: one finger — cursor, two fingers — scroll, click — left button (with two fingers — right).\nTurns itself off in fullscreen games."),
+            touch = Kit.Toggle(ctl, Lang.T("Touchpad as mouse: one finger — cursor, two fingers — scroll, click — left button (with two fingers — right).\nTurns itself off in fullscreen games."),
                 Engine.TouchMouse, v => Engine.TouchMouse = v);
             StackPanel touchOpts = new StackPanel { Margin = new Thickness(50, 0, 0, 0) };
             TouchSettings.Build(touchOpts, Engine.Touch);
@@ -107,49 +107,10 @@ namespace Glowstick
             }));
         }
 
-        internal StackPanel Section(string title)
-        {
-            page.Children.Add(new TextBlock { Text = title, Style = Theme.Style("Section") });
-            StackPanel body = new StackPanel();
-            page.Children.Add(new Border { Style = Theme.Style("CardBox"), Padding = new Thickness(18, 14, 18, 16), Child = body });
-            return body;
-        }
+        // A section of this page (the Pro module adds its own through this too)
+        internal StackPanel Section(string title) { return Kit.Card(page, title); }
 
-        internal static FrameworkElement Row(string label, FrameworkElement control) { return Row(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center }, control, 170); }
-
-        internal static FrameworkElement Row(TextBlock label, FrameworkElement control, double labelWidth)
-        {
-            Grid g = new Grid();
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(labelWidth) });
-            g.ColumnDefinitions.Add(new ColumnDefinition());
-            g.Children.Add(label);
-            Grid.SetColumn(control, 1);
-            g.Children.Add(control);
-            return g;
-        }
-
-        internal static CheckBox Toggle(Panel parent, string text, bool value, Action<bool> set)
-        {
-            CheckBox c = new CheckBox { Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap }, IsChecked = value, Margin = new Thickness(0, parent.Children.Count > 0 ? 10 : 0, 0, 0) };
-            c.Click += (s, e) => { set(c.IsChecked == true); Settings.Save(); };
-            parent.Children.Add(c);
-            return c;
-        }
-
-        // A labelled slider: label(value) on the left, the slider on the right; saved when the mouse is released or a key is used
-        internal static Slider Slide(Panel parent, Func<double, string> label, double min, double max, double value, Action<double> set, double indent = 0, double step = 1)
-        {
-            TextBlock lbl = new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
-            Slider sl = new Slider { Minimum = min, Maximum = max, Value = Math.Max(min, Math.Min(max, value)), SmallChange = step, LargeChange = step * 5, IsSnapToTickEnabled = true, TickFrequency = step };
-            lbl.Text = label(sl.Value);
-            sl.ValueChanged += (s, e) => { set(sl.Value); lbl.Text = label(sl.Value); };
-            sl.PreviewMouseUp += (s, e) => Settings.Save();
-            sl.KeyUp += (s, e) => Settings.Save();
-            FrameworkElement row = Row(lbl, sl, 240);
-            row.Margin = new Thickness(indent, 10, 0, 0);
-            parent.Children.Add(row);
-            return sl;
-        }
+        internal static FrameworkElement Row(string label, FrameworkElement control) { return Kit.Row(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center }, control, 170); }
 
         // "…wasn't touched (min, 0 — never):" with a number box 0–240
         static void Minutes(Panel parent, string text, int value, Action<int> set)
@@ -199,7 +160,7 @@ namespace Glowstick
                 Button pick = new Button { Width = 220, HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 4, 10, 4) };
                 if (pro) pick.Click += (s, e) => ComboPopup(pick, act, refresh);
                 picks.Add(pick);
-                FrameworkElement row = Row(new TextBlock { Text = titles[(int)a], VerticalAlignment = VerticalAlignment.Center,
+                FrameworkElement row = Kit.Row(new TextBlock { Text = titles[(int)a], VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming = TextTrimming.CharacterEllipsis }, pick, 260);
                 row.Margin = new Thickness(0, 0, 0, 6);
                 table.Children.Add(row);

@@ -21,7 +21,8 @@ namespace Glowstick
         public static readonly string BuyUrl = "https://tkachuktaras.gumroad.com/l/glowstick-pro";   // the Gumroad product page
         public const string MyPresets = "My presets";         // category of the user's own presets (Pro)
 
-        // ---------- filled by the module ----------
+        // ---------- filled by the module (the free build leaves them null — hence no CS0649) ----------
+#pragma warning disable 649
         public static Action<Dictionary<string, object>> Load, Save;       // its part of settings.json
         public static Func<string> SavedPreset;                             // what to store as the preset (a game profile may be playing)
         public static Action AppStarted, AppExiting, EverySecond;
@@ -39,6 +40,8 @@ namespace Glowstick
         public static Func<Controller, TouchConfig> TouchFor = null;             // the touchpad settings of the controller's input profile, or null — the global ones
         public static Func<Controller, double> RumbleScale = null;               // rumble strength multiplier of the controller's input profile
         public static Action<ContextMenu, string> PadMenu = null;                 // extra items in a controller's tile menu (by id)
+        public static Action<string> ControllerGone = null;                   // a controller was closed (by id): release what its input mapping holds
+#pragma warning restore 649
 
         public static void Startup()
         {

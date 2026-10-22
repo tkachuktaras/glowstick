@@ -2,6 +2,7 @@
 //   "Glowstick"     — autostart at Windows logon (in the tray), toggled by a checkbox;
 //   "Glowstick UI"  — no trigger; a normal (non-admin) launch of the exe restarts itself elevated through it.
 // Task priority is normal (Windows defaults to lowered) and there are no battery or run-time limits.
+// The tasks start the protected copy in Program Files (Installer), never an exe a normal user could replace.
 using System;
 using System.IO;
 using System.Security;
@@ -14,6 +15,10 @@ namespace Glowstick
     {
         public const string LogonTask = "Glowstick", UiTask = "Glowstick UI";
         const int TASK_CREATE_OR_UPDATE = 6, TASK_LOGON_INTERACTIVE_TOKEN = 3;
+
+        // The exe the tasks start: the protected copy. Set by the elevated start (Installer.Ensure); null — it couldn't be
+        // made, so no task is created.
+        public static string Target = Installer.Exe;
 
         static dynamic Folder()
         {
@@ -29,21 +34,22 @@ namespace Glowstick
 
         public static bool Exists(string name) { return Get(name) != null; }
 
-        // The task exists and points to this very exe.
+        // The task exists and points to the protected copy.
         public static bool PointsHere(string name)
         {
             dynamic t = Get(name);
-            if (t == null) return false;
+            if (t == null || Target == null) return false;
             try
             {
                 string xml = t.Xml;
-                return xml.IndexOf("<Command>" + SecurityElement.Escape(Application.ExecutablePath) + "</Command>", StringComparison.OrdinalIgnoreCase) >= 0;
+                return xml.IndexOf("<Command>" + SecurityElement.Escape(Target) + "</Command>", StringComparison.OrdinalIgnoreCase) >= 0;
             }
             catch { return false; }
         }
 
         public static bool Create(string name, bool atLogon, string args)
         {
+            if (Target == null) return false;
             try
             {
                 string user = WindowsIdentity.GetCurrent().User.Value;
@@ -60,7 +66,7 @@ namespace Glowstick
                     "<IdleSettings><StopOnIdleEnd>false</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleSettings>" +
                     "<AllowStartOnDemand>true</AllowStartOnDemand><Enabled>true</Enabled><Hidden>false</Hidden>" +
                     "<ExecutionTimeLimit>PT0S</ExecutionTimeLimit><Priority>4</Priority></Settings>" +
-                    "<Actions Context=\"Author\"><Exec><Command>" + SecurityElement.Escape(Application.ExecutablePath) + "</Command>" +
+                    "<Actions Context=\"Author\"><Exec><Command>" + SecurityElement.Escape(Target) + "</Command>" +
                     (string.IsNullOrEmpty(args) ? "" : "<Arguments>" + SecurityElement.Escape(args) + "</Arguments>") +
                     "</Exec></Actions></Task>";
                 Folder().RegisterTask(name, xml, TASK_CREATE_OR_UPDATE, null, null, TASK_LOGON_INTERACTIVE_TOKEN, null);

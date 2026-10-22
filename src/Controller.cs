@@ -70,7 +70,7 @@ namespace Glowstick
         bool hasLast;
         Btn prevBtn, hotPrev;
         byte restLX, restLY, restRX, restRY;
-        bool psHeld, psCombo, psPass, touchWas;
+        bool psHeld, psCombo, psPass, touchWas, submitFailed;
         long psDownMs, psTapUntil;
         double batT0 = -1; int batB0;
         readonly Touchpad touch = new Touchpad();
@@ -146,6 +146,9 @@ namespace Glowstick
         }
 
         // Creates the virtual pad of the chosen kind (DualShock 4 or Xbox 360). On failure — no virtual pad, battery still read.
+        // FeedbackReceived is marked obsolete in ViGEm.NET (AwaitRawOutputReport is the newer way); it works for rumble, and
+        // switching needs a feel-check on real hardware — kept until then
+#pragma warning disable 618
         void ConnectVirtual()
         {
             try
@@ -179,6 +182,8 @@ namespace Glowstick
             catch { }
             pad = null; ds4 = null; x360 = null;
         }
+
+#pragma warning restore 618
 
         // Change what games see this controller as, live (recreates the virtual pad). No effect outside game mode.
         public void SwitchOutput(string kind)
@@ -295,8 +300,13 @@ namespace Glowstick
                     IDualShock4Controller d = ds4; IXbox360Controller x = x360;
                     if (d != null) d.SubmitRawReport(send);
                     else if (x != null) FeedX360(x, send);
+                    submitFailed = false;
                 }
-                catch { }
+                catch (Exception e)
+                {
+                    // The virtual pad stopped taking reports (ViGEmBus gone, pad being switched): games get no input — say so once
+                    if (!submitFailed) { submitFailed = true; Log.Error("virtual pad report " + Id, e); }
+                }
                 Interlocked.Increment(ref reports);
 
                 // Below — everything that must not delay forwarding
@@ -519,6 +529,7 @@ namespace Glowstick
             if (hRead != null) { Native.CancelIoEx(hRead, IntPtr.Zero); }
             if (reader != null) reader.Join(500);
             if (hRead != null) hRead.Dispose();
+            if (Pro.ControllerGone != null) try { Pro.ControllerGone(Id); } catch (Exception e) { Log.Error("controller gone", e); }   // e.g. let go of remapped keys
             if (pad != null) DisconnectVirtual();
             lock (writeLock) { hWrite.Dispose(); }
         }

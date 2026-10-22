@@ -136,7 +136,7 @@ namespace Glowstick
 
         public static void OpenUrl(string url)
         {
-            try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch (Exception e) { Log.Error("open url", e); }
+            Shell.RunAsUser(url, null);   // not elevated: a browser opened from here must not get administrator rights
         }
 
         // ---------- updates ----------
@@ -299,6 +299,7 @@ namespace Glowstick
                         Autostart.Delete(Autostart.UiTask);
                         Autostart.Delete(Autostart.OldLogonTask);
                         Autostart.Delete(Autostart.OldUiTask);
+                        Installer.Remove();
                         bool reboot;
                         string err = Drivers.UninstallAll(out reboot);
                         foreach (string dir in new[] { Settings.Dir, Settings.OldDir })

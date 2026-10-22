@@ -11,7 +11,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1        # → dist\Glowstick.e
 powershell -ExecutionPolicy Bypass -File tools\test.ps1   # automated tests, no controller needed
 ```
 
-Only .NET Framework 4.7.2+ is needed (it ships with Windows 10/11) — no Visual Studio or .NET SDK. `build.ps1` downloads the driver installers into `redist/` and checks their SHA-256. If Glowstick is running, close it (tray → Exit) before building.
+Only .NET Framework 4.7.2+ is needed (it ships with Windows 10/11) — no Visual Studio or .NET SDK. The first build downloads the Roslyn compiler (NuGet `Microsoft.Net.Compilers.Toolset`, pinned by version and SHA-256 in `tools/common.ps1`) into `obj/roslyn`. `build.ps1` downloads the driver installers into `redist/` and checks their SHA-256. If Glowstick is running, close it (tray → Exit) before building.
 
 The tests check every preset with 1–8 controllers, every custom effect, the DualSense → DualShock 4 report translation and that every translation is complete. CI runs them on every push and pull request.
 
@@ -42,7 +42,8 @@ The tests check every preset with 1–8 controllers, every custom effect, the Du
 
 ## Code style
 
-- C# 5 (the `csc.exe` that ships with Windows) — no `$"..."`, `?.`, expression-bodied members, `out var` and so on.
+- Modern C# (Roslyn 4.11, compiled for .NET Framework 4.8): `?.`, `$"..."`, `out var`, pattern matching are fine. Older files are in C# 5 style — no need to rewrite them, just don't mix both in one method.
+- The per-report input path (Controller.ReadLoop and what it calls) runs on the highest-priority thread: no allocations there in steady state — the Pro tests measure it.
 - Code comments are in English; a comment explains *why*, not *what*.
 - User-facing text goes through `Lang.T("English text")` or `Lang.F("Text {0}", x)` — never a bare string.
 - One file — one topic (see [Project layout](#project-layout)).

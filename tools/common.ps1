@@ -1,9 +1,26 @@
 ﻿# Shared by build.ps1 and tools\test.ps1: compiler, references, translations, BuildInfo.
 # Included by dot-sourcing: . (Join-Path $PSScriptRoot 'common.ps1')
 $root = Split-Path $PSScriptRoot
-$fw   = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
-$csc  = Join-Path $fw 'csc.exe'
-if (-not (Test-Path $csc)) { throw 'csc.exe (.NET Framework 4) not found.' }
+$fw   = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'   # the .NET Framework 4.8 assemblies referenced (WPF etc.)
+
+# Compiler: Roslyn (modern C#) from Microsoft's official NuGet package Microsoft.Net.Compilers.Toolset — its csc runs on
+# .NET Framework, so nothing has to be installed. Pinned by version and SHA-256 (the nupkg's SHA-512 was checked against
+# nuget.org's catalog when pinning); downloaded once into obj\roslyn.
+$roslynVersion = '4.11.0'
+$roslynSha256  = 'db165c75f0d0386d078d01448f96c93f8222320633e4fe828f5d1bf8c99b7d6f'
+$roslynDir = Join-Path $root "obj\roslyn\$roslynVersion"
+$csc = Join-Path $roslynDir 'tasks\net472\csc.exe'
+if (-not (Test-Path $csc)) {
+    New-Item -ItemType Directory -Force $roslynDir | Out-Null
+    $pkg = Join-Path $roslynDir 'package.zip'
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -UseBasicParsing "https://api.nuget.org/v3-flatcontainer/microsoft.net.compilers.toolset/$roslynVersion/microsoft.net.compilers.toolset.$roslynVersion.nupkg" -OutFile $pkg
+    $got = (Get-FileHash $pkg -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($got -ne $roslynSha256) { Remove-Item $pkg; throw "Roslyn package checksum mismatch ($got) — not using it." }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($pkg, $roslynDir)
+    Remove-Item $pkg
+}
 $vigem = Join-Path $root 'lib\Nefarius.ViGEm.Client.dll'
 
 $references = @(
