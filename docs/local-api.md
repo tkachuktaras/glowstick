@@ -1,18 +1,14 @@
 # Local API
 
-Glowstick Pro can run a small HTTP server on your own PC so Stream Deck, Home Assistant, OBS or a script
-can read status, switch presets and set colors and effects live — nothing you do in a game or in Windows needs
-to change. Turn it on in **Settings → Local API**; that screen shows the port and the token to use.
-
-> The Local API is part of **Glowstick Pro**. The free version shows the screen locked.
+A small HTTP server in Glowstick Pro, so Stream Deck, Home Assistant, OBS or a script can read the status, switch
+presets and set colors and effects. Turn it on in **Settings → Local API**; the port and token are shown there.
 
 - Loopback only: it listens on `127.0.0.1`, so nothing outside this PC can reach it.
 - Every request needs the token, either as the header `X-Glowstick-Token: <token>` or as `?token=<token>`
   in the URL. Without it (or with the wrong one) you get `401`.
 - Turning the token over (the "New token" button) immediately invalidates the old one.
 - Bodies and replies are JSON.
-- Limits: the request line and each header up to 8 KB, at most 64 headers (otherwise `400`), the body up to
-  64 KB (otherwise `413`). The token is checked before the body is read.
+- Limits: lines up to 8 KB and 64 headers (`400`), body up to 64 KB (`413`).
 
 ## Controllers
 

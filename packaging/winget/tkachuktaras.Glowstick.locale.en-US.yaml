@@ -11,9 +11,8 @@ License: GPL-3.0-or-later
 LicenseUrl: https://github.com/tkachuktaras/glowstick/blob/main/LICENSE
 ShortDescription: Light bar control for DualShock 4 and DualSense controllers
 Description: |-
-  Glowstick controls the light bar of DualShock 4 and DualSense controllers on Windows — any number at once.
-  Colors, animations, live presets that react to music, the screen and battery, your own presets,
-  per-controller settings and no conflicts with games.
+  Light bar colors and animations for DualShock 4 and DualSense on Windows, the battery in the tray,
+  the touchpad as a mouse, and no conflicts with games.
 Moniker: glowstick
 Tags:
   - dualshock

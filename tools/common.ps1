@@ -46,13 +46,14 @@ function Get-AppVersion {
     return (Get-Content (Join-Path $root 'VERSION') -Raw).Trim()
 }
 
-# GitHub repository (owner/name) for the update check: from CI or git remote origin; not found — ''
+# The public GitHub repository (owner/name): the update check, About. Taken from this checkout's origin — the open
+# repository even inside the Pro build (the core is its submodule), never the repository CI happens to run in.
 function Get-Repo {
-    if ($env:GITHUB_REPOSITORY) { return $env:GITHUB_REPOSITORY }
     try {
         $url = (& git -C $root remote get-url origin 2>$null)
         if ($url -match 'github\.com[:/]([^/]+/[^/]+?)(\.git)?/?$') { return $Matches[1] }
     } catch { }
+    if ($env:GITHUB_REPOSITORY -and $env:GITHUB_REPOSITORY -notmatch '_pro$') { return $env:GITHUB_REPOSITORY }
     return ''
 }
 
