@@ -220,7 +220,7 @@ namespace Glowstick
                 {
                     Pad p = Pad.Parse(raw);
                     TouchConfig tc = Pro.TouchFor != null ? Pro.TouchFor(this) : null;   // a Pro input profile may bring its own
-                    touch.Process(ref p, tc ?? Engine.Touch, now);
+                    touch.Process(ref p, tc ?? Engine.Touch, Engine.MsExact);
                     touchWas = true;
                 }
                 else if (touchWas) { touch.Reset(); touchWas = false; }

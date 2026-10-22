@@ -47,6 +47,7 @@ namespace Glowstick
 
         static readonly Stopwatch clock = Stopwatch.StartNew();
         public static long Ms { get { return clock.ElapsedMilliseconds; } }
+        public static double MsExact { get { return clock.ElapsedTicks * 1000.0 / Stopwatch.Frequency; } }
         static readonly ConcurrentQueue<KeyValuePair<Controller, HotAction>> hotkeys = new ConcurrentQueue<KeyValuePair<Controller, HotAction>>();
 
         // Minimum interval between light bar packets so the Bluetooth link isn't flooded (rumble goes without delay)

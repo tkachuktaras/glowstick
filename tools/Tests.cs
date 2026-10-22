@@ -538,14 +538,24 @@ namespace Glowstick
             ev.Clear(); t.Reset();
             for (int k = 0; k < 80; k++) P(t, one(true, 500 + (k % 2), 400 + (k % 3 == 0 ? 1 : 0)), smooth, now += 4);
             Check(Math.Abs(ev.Where(e => e[3] == Touchpad.MOVE).Sum(e => e[0])) <= 2, "a resting finger's 1-unit wobble barely moves the cursor");
-            Check(Touchpad.Gain(0) < Touchpad.Gain(0.5) && Touchpad.Gain(0.5) < Touchpad.Gain(2) && Math.Abs(Touchpad.Gain(10) - 2) < 1e-9, "acceleration rises smoothly to 2×");
+            // DS4 over Bluetooth: a report every ~1.8 ms, a new touch point only every 4th — the cursor still moves on most
+            // reports in even steps, not one jump per point
+            ev.Clear(); t.Reset();
+            double tn = now + 100;
+            int[] per = new int[200];
+            for (int k = 0; k < 200; k++) { int b3 = ev.Count; P(t, one(true, 300 + (k / 4) * 6, 400), smooth, tn += 1.8); per[k] = ev.Skip(b3).Where(e => e[3] == Touchpad.MOVE).Sum(e => e[0]); }
+            int moved = per.Skip(40).Count(s => s > 0), top = per.Skip(40).Max(), total = per.Skip(40).Sum();
+            Check(moved >= 120 && top <= total / 160.0 * 2 + 1,"sensor slower than reports: the cursor moves evenly (" + moved + "/160 reports, biggest step " + top + ", total " + total + ")");
+            Check(Touchpad.Gain(0, 2) < Touchpad.Gain(0.5, 2) && Touchpad.Gain(0.5, 2) < Touchpad.Gain(2, 2) && Math.Abs(Touchpad.Gain(10, 2) - 2) < 1e-9, "acceleration rises smoothly to the set maximum");
+            Check(Touchpad.Gain(0, 3) == Touchpad.Gain(0, 1.5) && Touchpad.Gain(1, 1.5) < Touchpad.Gain(1, 3), "the acceleration strength changes fast movements, not slow ones");
 
-            TouchConfig r = TouchConfig.Load(new TouchConfig { Sens = 2.5, Trackball = true, InvertY = true, Friction = 0.3 }.Save());
-            Check(r.Sens == 2.5 && r.Trackball && r.InvertY && r.Friction == 0.3, "touch settings round trip");
+            TouchConfig r = TouchConfig.Load(new TouchConfig { Sens = 2.5, Trackball = true, InvertY = true, Friction = 0.3, AccelMax = 2.5 }.Save());
+            Check(r.Sens == 2.5 && r.Trackball && r.InvertY && r.Friction == 0.3 && r.AccelMax == 2.5, "touch settings round trip");
+            Check(TouchConfig.Load(new Dictionary<string, object> { { "AccelMax", 0.2 } }).AccelMax == 1, "acceleration strength clamped");
             Check(TouchConfig.Load(new Dictionary<string, object> { { "Sens", 99.0 } }).Sens == 4, "touch sensitivity clamped");
         }
 
-        static void P(Touchpad t, Pad p, TouchConfig c, long now) { t.Process(ref p, c, now); }
+        static void P(Touchpad t, Pad p, TouchConfig c, double now) { t.Process(ref p, c, now); }
 
         static void Hotkeys()
         {
