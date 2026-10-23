@@ -1,5 +1,6 @@
 // Controllers page: one card per connected controller with what the classic window hid in the tile menu —
-// name, own preset, show battery, turn off — plus "search again". Cards are dragged to change the order.
+// name, own preset, find it, turn off, a drifting stick — plus "who is who" and "search again".
+// Cards are dragged to change the order.
 using System;
 using System.Collections.Generic;
 using System.Windows;
@@ -24,6 +25,8 @@ namespace Glowstick
             public TextBox Name;
             public ComboBox Preset;
             public TextBlock Info, Warning, Hint;
+            public StackPanel Drift;
+            public string DriftShown = "";
             public ControllerExtra Extra;
             public BatteryCell Cell;
             public Button Off;
@@ -36,8 +39,13 @@ namespace Glowstick
             DockPanel head = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
             Button scan = new Button { Content = Lang.T("Search again"), VerticalAlignment = VerticalAlignment.Center };
             scan.Click += (s, e) => Engine.Rescan();
-            DockPanel.SetDock(scan, Dock.Right);
-            head.Children.Add(scan);
+            Button who = new Button { Content = Lang.T("Who is who"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0),
+                ToolTip = Lang.T("Every controller blinks its number: the 1st once, the 2nd twice…") };
+            who.Click += (s, e) => Engine.Identify();
+            StackPanel headButtons = new StackPanel { Orientation = Orientation.Horizontal };
+            headButtons.Children.Add(who); headButtons.Children.Add(scan);
+            DockPanel.SetDock(headButtons, Dock.Right);
+            head.Children.Add(headButtons);
             head.Children.Add(new TextBlock { Text = Lang.T("Controllers"), Style = Theme.Style("PageTitle"), Margin = new Thickness(0) });
             page.Children.Add(head);
             hint.Style = Theme.Style("MutedText");
@@ -127,7 +135,7 @@ namespace Glowstick
             // Line 2: battery and model, actions
             DockPanel line2 = new DockPanel { Margin = new Thickness(0, 10, 0, 0) };
             StackPanel acts = new StackPanel { Orientation = Orientation.Horizontal };
-            acts.Children.Add(Small(Lang.T("Show battery on the light bar"), null, () => Engine.ShowBattery(id), id));
+            acts.Children.Add(Small(Lang.T("Find"), Lang.T("It rumbles and flashes white"), () => Engine.Find(id), id));
             r.Off = Small(Lang.T("Turn off (Bluetooth)"), null, () => Engine.Disconnect(id), id);
             acts.Children.Add(r.Off);
             DockPanel.SetDock(acts, Dock.Right);
@@ -137,6 +145,9 @@ namespace Glowstick
             r.Info = new TextBlock { Style = Theme.Style("MutedText"), TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
             line2.Children.Add(r.Info);
             body.Children.Add(line2);
+
+            r.Drift = new StackPanel { Visibility = Visibility.Collapsed };
+            body.Children.Add(r.Drift);
 
             r.Warning = new TextBlock { Foreground = Theme.Brush("Warn"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
             body.Children.Add(r.Warning);
@@ -212,7 +223,46 @@ namespace Glowstick
             string warn = c.Warning != null ? "⚠ " + c.Warning : "";
             if (r.Warning.Text != warn) { r.Warning.Text = warn; r.Warning.Visibility = warn == "" ? Visibility.Collapsed : Visibility.Visible; }
 
+            ShowDrift(r, c);
             if (r.Extra != null) r.Extra.Update(c);
+        }
+
+        // A stick that rests off center (and isn't hidden by its dead zone yet): what's wrong, and in Pro a one-click fix
+        void ShowDrift(Row r, ControllerInfo c)
+        {
+            List<string> lines = new List<string>();
+            List<KeyValuePair<bool, double>> fix = new List<KeyValuePair<bool, double>>();
+            foreach (bool left in new[] { true, false })
+            {
+                double off = left ? c.DriftL : c.DriftR;
+                double dz = Pro.StickDeadzone != null && Pro.Unlocked ? Pro.StickDeadzone(c.Id, left) : 0;
+                if (off < DriftMeter.Shown || off < dz - 0.01) continue;
+                int pct = (int)Math.Round(off * 100);
+                lines.Add(left ? Lang.F("The left stick drifts: at rest it stays {0}% off center.", pct) : Lang.F("The right stick drifts: at rest it stays {0}% off center.", pct));
+                fix.Add(new KeyValuePair<bool, double>(left, DriftMeter.DeadzoneFor(off)));
+            }
+            string key = string.Join("|", lines);
+            if (key == r.DriftShown) return;
+            r.DriftShown = key;
+            r.Drift.Children.Clear();
+            r.Drift.Visibility = lines.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+            string id = c.Id;
+            for (int k = 0; k < lines.Count; k++)
+            {
+                DockPanel row = new DockPanel { Margin = new Thickness(0, 8, 0, 0) };
+                bool left = fix[k].Key; double dz = fix[k].Value;
+                Button b = new Button { Padding = new Thickness(10, 4, 10, 4), FontSize = 12, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+                    Content = (Pro.Unlocked ? "" : "🔒 ") + Lang.F("Set its dead zone to {0}%", (int)Math.Round(dz * 100)) };
+                b.Click += (s, e) =>
+                {
+                    if (!Pro.Unlocked || Pro.SetStickDeadzone == null) { if (UiApp.Main != null) UiApp.Main.ShowPro(); return; }
+                    PadMenu.IfPresent(id, () => Pro.SetStickDeadzone(id, left, dz));
+                };
+                DockPanel.SetDock(b, Dock.Right);
+                row.Children.Add(b);
+                row.Children.Add(new TextBlock { Text = "⚠ " + lines[k], Foreground = Theme.Brush("Warn"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+                r.Drift.Children.Add(row);
+            }
         }
     }
 }

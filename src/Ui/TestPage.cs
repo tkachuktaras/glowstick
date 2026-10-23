@@ -187,7 +187,7 @@ namespace Glowstick
             if (c == null) { rate.Text = battery.Text = mode.Text = "—"; motion.Text = ""; return; }
             rate.Text = c.ReportRate.ToString();
             string bat = c.Battery < 0 ? "—" : c.Battery + "%" + (c.Charging ? " ⚡" : "");
-            string left = c.Charging ? "" : UiFormat.Hours(c.HoursLeft);
+            string left = UiFormat.TimeLeft(c.Charging, c.HoursLeft, c.HoursToFull);
             if (left != "") bat += "  " + left;
             battery.Text = bat;
             mode.Text = c.Virtual ? Lang.T("game (virtual pad)") : Lang.T("light bar only");

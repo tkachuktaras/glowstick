@@ -63,7 +63,8 @@ namespace Glowstick
             Mutex mutex = new Mutex(true, @"Local\Glowstick_SingleInstance", out created);
             // Started by an update: the previous version is releasing the controllers and exiting — wait for it
             bool updated = Array.Exists(args, a => a == "--updated");
-            if (!created && updated)
+            bool restarted = Array.Exists(args, a => a == "--restart");   // after restoring a backup (UiApp.Restart)
+            if (!created && (updated || restarted))
             {
                 try { created = mutex.WaitOne(20000); }
                 catch (AbandonedMutexException) { created = true; }

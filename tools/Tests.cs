@@ -62,6 +62,8 @@ namespace Glowstick
             AudioBands();
             Hardening();
             PadPieces();
+            PadHealthMeters();
+            Backups();
             ProServerAnswers();
             Sta(UiTests);
             Console.WriteLine(string.Format("{0} passed, {1} failed", passed, failed));
@@ -172,6 +174,8 @@ namespace Glowstick
             Check(UiFormat.Hours(0.004) == "" && UiFormat.Hours(0.008) == "", "under a minute → no estimate");
             Check(UiFormat.Hours(0.02) == "~1 min" && UiFormat.Hours(1.999) == "~2 h" && UiFormat.Hours(4.42) == "~4 h 25 min", "battery time with its units");
             Check(UiFormat.PadLine(new ControllerInfo { Battery = 1, Kind = "Bluetooth", HoursLeft = 0.004 }) == "1% · BT", "pad line without ~0:00");
+            Check(UiFormat.PadLine(new ControllerInfo { Battery = 64, Charging = true, Kind = "USB", HoursToFull = 1.5 }) == "64% ⚡ · USB · ~1 h 30 min to full", "pad line: time to full on the charger");
+            Check(UiFormat.PadLine(new ControllerInfo { Battery = 64, Charging = true, Kind = "USB", HoursToFull = 1.5 }, true) == "64% ⚡ · USB", "a tile: no time to full (too narrow)");
 
             // Preview animation time: a speed change doesn't jump, a long pause moves at most 0.2 s
             AnimClock ac = new AnimClock();
@@ -556,12 +560,68 @@ namespace Glowstick
             Check(sc == 0x4B && !ext, "scan code: numpad 4 = 4B (not extended)");
         }
 
+        // Link quality and stick drift (PadHealth.cs)
+        static void PadHealthMeters()
+        {
+            LinkMeter lm = new LinkMeter();
+            lm.Second(5); lm.Second(120); lm.Second(8); lm.Second(90);
+            Check(!lm.Weak, "two bad seconds of five → not weak yet");
+            lm.Second(150);
+            Check(lm.Weak && lm.WorstGapMs >= 150, "three bad seconds of five → weak, with its worst gap");
+            for (int k = 0; k < LinkMeter.QuietSeconds - 1; k++) lm.Second(4);
+            Check(lm.Weak, "stays weak until it's been quiet long enough (no flicker)");
+            lm.Second(4);
+            Check(!lm.Weak, "quiet for QuietSeconds → fine again");
+
+            DriftMeter dm = new DriftMeter();
+            long t = 0;
+            for (int k = 0; k < 40; k++) dm.Add(140, 128, true, t += 100);   // rests 10% right of center for 4 s
+            Check(dm.Offset > 0.09 && dm.Offset < 0.11, "a resting stick 13 units off → ~10% drift");
+            DriftMeter held = new DriftMeter();
+            for (int k = 0; k < 40; k++) held.Add(140, 128, false, k * 100L);
+            Check(held.Offset < 0, "a button held → not a rest, nothing measured");
+            DriftMeter pushed = new DriftMeter();
+            for (int k = 0; k < 40; k++) pushed.Add(250, 128, true, k * 100L);
+            Check(pushed.Offset < 0, "pushed far on purpose → not drift");
+            DriftMeter moving = new DriftMeter();
+            for (int k = 0; k < 40; k++) moving.Add((byte)(128 + k % 7), 128, true, k * 100L);
+            Check(moving.Offset < 0, "a moving stick never counts as resting");
+            Check(Math.Abs(DriftMeter.DeadzoneFor(0.10) - 0.13) < 1e-9 && DriftMeter.DeadzoneFor(0.9) == 0.5, "dead zone for a drift: a little room, at most 50%");
+        }
+
+        // Settings backup: what goes in, what a restore puts back, a file that isn't one
+        static void Backups()
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "glowstick-backup-test-" + Guid.NewGuid().ToString("N"));
+            string src = Path.Combine(dir, "src"), dst = Path.Combine(dir, "dst"), zip = Path.Combine(dir, "b.zip");
+            try
+            {
+                Directory.CreateDirectory(Path.Combine(src, "battery"));
+                File.WriteAllText(Path.Combine(src, "settings.json"), "{\"Preset\":\"Fire\"}");
+                File.WriteAllText(Path.Combine(src, "battery", "AA.csv"), "2026-10-23T10:00:00,80,0");
+                File.WriteAllText(Path.Combine(src, "log.txt"), "not in a backup");
+                Backup.Create(zip, src);
+                Directory.CreateDirectory(Path.Combine(dst, "battery"));
+                File.WriteAllText(Path.Combine(dst, "settings.json"), "{\"Preset\":\"Ice\"}");
+                File.WriteAllText(Path.Combine(dst, "battery", "OLD.csv"), "x");
+                Check(Backup.Restore(zip, dst) == null, "a backup restores");
+                Check(File.ReadAllText(Path.Combine(dst, "settings.json")).Contains("Fire"), "restore → the backed-up settings");
+                Check(File.Exists(Path.Combine(dst, "battery", "AA.csv")) && !File.Exists(Path.Combine(dst, "battery", "OLD.csv")), "restore → the backed-up battery history only");
+                Check(!File.Exists(Path.Combine(dst, "log.txt")), "the log isn't part of a backup");
+                string junk = Path.Combine(dir, "junk.zip");
+                File.WriteAllText(junk, "not a zip");
+                Check(Backup.Restore(junk, dst) != null && File.ReadAllText(Path.Combine(dst, "settings.json")).Contains("Fire"), "not a backup → refused, nothing touched");
+            }
+            finally { try { Directory.Delete(dir, true); } catch { } }
+        }
+
         // Touchpad as a mouse: taps, drag, scroll direction, absolute mode, glide, settings round trip
         static void TouchMouse()
         {
             List<int[]> ev = new List<int[]>();
             Touchpad t = new Touchpad();
             t.Output = (dx, dy, data, flags) => ev.Add(new[] { dx, dy, data, flags });
+            t.Target = (dx, dy) => null;   // relative moves (the unaccelerated path is checked below)
             TouchConfig c = new TouchConfig { TapClick = true, TapDrag = true };
             Func<bool, int, int, Pad> one = (down, x, y) => new Pad { Touch1 = down, T1X = x, T1Y = y, T1Id = 1 };
             Func<int, bool> has = f => ev.Exists(e => (e[3] & f) == f);
@@ -627,6 +687,20 @@ namespace Glowstick
             Check(moved >= 120 && top <= total / 160.0 * 2 + 1,"sensor slower than reports: the cursor moves evenly (" + moved + "/160 reports, biggest step " + top + ", total " + total + ")");
             Check(Touchpad.Gain(0, 2) < Touchpad.Gain(0.5, 2) && Touchpad.Gain(0.5, 2) < Touchpad.Gain(2, 2) && Math.Abs(Touchpad.Gain(10, 2) - 2) < 1e-9, "acceleration rises smoothly to the set maximum");
             Check(Touchpad.Gain(0, 3) == Touchpad.Gain(0, 1.5) && Touchpad.Gain(1, 1.5) < Touchpad.Gain(1, 3), "the acceleration strength changes fast movements, not slow ones");
+
+            // Windows' own acceleration left out: the move goes as the absolute position it ends at
+            ev.Clear(); t.Reset();
+            int[] asked = null;
+            t.Target = (dx, dy) => { asked = new[] { dx, dy }; return new[] { 1000 + dx, 2000 + dy }; };
+            TouchConfig un = new TouchConfig { Unaccelerated = true };
+            for (int k = 0; k < 20; k++) P(t, one(true, 300 + k * 20, 400), un, now += 4);
+            Check(asked != null && ev.Exists(e => e[3] == (Touchpad.MOVE | Touchpad.ABSOLUTE | Touchpad.VIRTUALDESK)) && !ev.Exists(e => e[3] == Touchpad.MOVE),
+                "unaccelerated: moves go out as absolute positions, none relative");
+            t.Target = (dx, dy) => null;
+            Check(InputOut.ToAbsolute(0, 1920) == 0 && InputOut.ToAbsolute(1919, 1920) <= 65535 && InputOut.ToAbsolute(960, 1920) * 1920 / 65536 == 960,
+                "absolute coordinates land on the exact pixel");
+            Check(TouchConfig.Load(new Dictionary<string, object>()).Unaccelerated && !TouchConfig.Load(new TouchConfig { Unaccelerated = false }.Save()).Unaccelerated,
+                "unaccelerated: on by default, kept when turned off");
 
             TouchConfig r = TouchConfig.Load(new TouchConfig { Sens = 2.5, Trackball = true, InvertY = true, Friction = 0.3, AccelMax = 2.5 }.Save());
             Check(r.Sens == 2.5 && r.Trackball && r.InvertY && r.Friction == 0.3 && r.AccelMax == 2.5, "touch settings round trip");

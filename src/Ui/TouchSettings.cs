@@ -13,6 +13,7 @@ namespace Glowstick
             Kit.Slide(p, v => Lang.F("Sensitivity: {0}%", (int)v), 20, 400, Math.Round(c.Sens * 100), v => c.Sens = v / 100.0, 0, 5);
             Kit.Toggle(p, Lang.T("Acceleration: slow movements are precise, fast ones go far"), c.Accel, v => c.Accel = v);
             Kit.Slide(p, v => Lang.F("Acceleration strength: {0}%", (int)v), 100, 400, Math.Round(c.AccelMax * 100), v => c.AccelMax = v / 100.0, 0, 5);
+            Kit.Toggle(p, Lang.T("Ignore Windows pointer speed and “Enhance pointer precision” (only this acceleration counts)"), c.Unaccelerated, v => c.Unaccelerated = v);
             Kit.Toggle(p, Lang.T("Jitter compensation"), c.Jitter, v => c.Jitter = v);
             Kit.Toggle(p, Lang.T("Tap to click (two-finger tap — right click)"), c.TapClick, v => c.TapClick = v);
             Kit.Toggle(p, Lang.T("Double tap and slide to drag"), c.TapDrag, v => c.TapDrag = v);

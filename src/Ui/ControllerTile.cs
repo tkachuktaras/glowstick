@@ -87,12 +87,12 @@ namespace Glowstick
             if (light.Color != col) light.Color = col;
 
             string title = (c.OwnPreset != null ? "★ " : "") + Engine.DisplayName(c, index);
-            string key = title + "|" + UiFormat.PadLine(c) + "|" + c.Battery + "|" + c.Warning + "|" + c.Model;
+            string key = title + "|" + UiFormat.PadLine(c, true) + "|" + c.Battery + "|" + c.Warning + "|" + c.Model;
             if (key == shown) return;
             shown = key;
 
             name.Text = title;
-            line.Text = UiFormat.PadLine(c);
+            line.Text = UiFormat.PadLine(c, true);
             cell.Visibility = c.Battery >= 0 ? Visibility.Visible : Visibility.Collapsed;
             cell.Set(c.Battery, c.Charging);
             warning.Text = c.Warning != null ? "⚠ " + c.Warning : "";

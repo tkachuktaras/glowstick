@@ -19,17 +19,18 @@ namespace Glowstick
 
         // The made-up controllers: every model and connection, each with its own name, preset, charge and battery history.
         // The charge is what a real one reports: a DualShock 4 in 1/8 steps (1/11 while charging), a DualSense in 10% steps.
-        // Gold has just been connected: no drain estimate, no history yet.
+        // Gold has just been connected: no drain estimate, no history yet. For the one on the charger DrainPerHour is its charge rate.
         internal class DemoPad
         {
             public string Id, Name, Preset; public bool DualSense, Bluetooth, Charging; public int Battery, Rate; public double DrainPerHour;
+            public double DriftL = -1;   // the left stick rests this far off center (the drift warning on its card)
         }
 
         public static readonly DemoPad[] Pads =
         {
             new DemoPad { Id = "A4AE12F0C3D1", Name = "Jet Black", Preset = "PlayStation blue", Bluetooth = true, Battery = 87, DrainPerHour = 12, Rate = 286 },
-            new DemoPad { Id = "1C66FA2B9E40", Name = "Gold", Preset = "Fire", Bluetooth = true, Battery = 37, DrainPerHour = -1, Rate = 261 },
-            new DemoPad { Id = "E8478B11D2A7", Name = "DualSense White", Preset = "Rainbow (offset)", DualSense = true, Battery = 65, Charging = true, Rate = 250 },
+            new DemoPad { Id = "1C66FA2B9E40", Name = "Gold", Preset = "Fire", Bluetooth = true, Battery = 37, DrainPerHour = -1, Rate = 261, DriftL = 0.09 },
+            new DemoPad { Id = "E8478B11D2A7", Name = "DualSense White", Preset = "Rainbow (offset)", DualSense = true, Battery = 65, Charging = true, DrainPerHour = 30, Rate = 250 },
             new DemoPad { Id = "58A1C3E0F655", Name = "Midnight", Preset = "Police (smooth)", DualSense = true, Bluetooth = true, Battery = 15, DrainPerHour = 11.4, Rate = 248 },
         };
 

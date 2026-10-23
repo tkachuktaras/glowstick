@@ -33,6 +33,7 @@ namespace Glowstick
         public volatile int Battery = -1;   // charge, %; -1 — not known yet
         public volatile bool Charging;
         public double DrainPerHour = -1;    // % drained per hour; -1 — not known yet
+        public double ChargePerHour = -1;   // % gained per hour on the charger; -1 — not known yet
         public ulong BtAddress;
 
         // State for the light bar engine (timestamps — Engine.Ms)
@@ -72,6 +73,16 @@ namespace Glowstick
         readonly Touchpad touch = new Touchpad();
         readonly PsHotkeys hotkeys;
         bool demo;   // a made-up controller of the showcase mode: no device behind it
+        // Health (PadHealth.cs): gaps between reports (Bluetooth link), where the sticks rest
+        readonly LinkMeter link = new LinkMeter();
+        readonly DriftMeter driftL = new DriftMeter(), driftR = new DriftMeter();
+        long lastReportMs = -1;
+        int worstGap;
+        public bool WeakLink { get { return link.Weak; } }
+        public int WorstGapMs { get { return link.WorstGapMs; } }
+        public double DriftL { get { return demo ? demoDriftL : driftL.Offset; } }
+        double demoDriftL = -1;
+        public double DriftR { get { return driftR.Offset; } }
 
         public bool Virtual { get { VirtualPad v = vpad; return demo || v != null && v.Connected; } }
 
@@ -119,8 +130,10 @@ namespace Glowstick
             Controller c = new Controller("showcase:" + p.Id, null, null, 0, p.Bluetooth ? 78 : 0);
             c.demo = true;
             c.Id = p.Id; c.DualSense = p.DualSense; c.Bluetooth = p.Bluetooth;
-            c.Battery = p.Battery; c.Charging = p.Charging; c.DrainPerHour = p.Charging ? -1 : p.DrainPerHour;
+            c.Battery = p.Battery; c.Charging = p.Charging;
+            c.DrainPerHour = p.Charging ? -1 : p.DrainPerHour; c.ChargePerHour = p.Charging ? p.DrainPerHour : -1;
             c.ReportRate = p.Rate;
+            c.demoDriftL = p.DriftL;
             c.LastActiveMs = Engine.Ms;
             return c;
         }
@@ -217,10 +230,15 @@ namespace Glowstick
                 }
                 else if (Engine.Hotkeys) hotkeys.Update(btn, now);   // no game to hide them from — the actions still fire
                 Interlocked.Increment(ref reports);
+                if (lastReportMs >= 0 && now - lastReportMs > worstGap) worstGap = (int)(now - lastReportMs);
+                lastReportMs = now;
 
                 // Below — everything that must not delay forwarding
                 lock (lastLock) { Buffer.BlockCopy(raw, 0, last, 0, 63); hasLast = true; }
                 Activity(raw, btn, now);
+                bool idle = btn == 0 && raw[7] < 10 && raw[8] < 10;   // put down: nothing held
+                driftL.Add(raw[0], raw[1], idle, now);
+                driftR.Add(raw[2], raw[3], idle, now);
                 if (full)
                 {
                     if (DualSense) UpdateBattery(ds5Pct, ds5Chg, now);
@@ -284,7 +302,7 @@ namespace Glowstick
         // e.g. the battery was swapped), and on the charger it only goes up. Drain rate — between two moments the level dropped.
         void UpdateBattery(int pct, bool chg, long now)
         {
-            if (Battery < 0 || chg != Charging) { Battery = pct; Charging = chg; batT0 = -1; DrainPerHour = -1; return; }
+            if (Battery < 0 || chg != Charging) { Battery = pct; Charging = chg; batT0 = chgT0 = -1; DrainPerHour = ChargePerHour = -1; return; }
             if (!chg)
             {
                 if (pct < Battery)
@@ -295,8 +313,20 @@ namespace Glowstick
                 }
                 else if (pct >= Battery + 25) { Battery = pct; batT0 = -1; DrainPerHour = -1; }
             }
-            else if (pct > Battery || pct <= Battery - 25) Battery = pct;
+            else if (pct > Battery)
+            {
+                // Charge rate — between two moments the level rose, like the drain rate
+                if (chgT0 < 0) { chgT0 = now; chgB0 = pct; }
+                else ChargePerHour = (pct - chgB0) / ((now - chgT0) / 3600000.0);
+                Battery = pct;
+            }
+            else if (pct <= Battery - 25) { Battery = pct; chgT0 = -1; ChargePerHour = -1; }
         }
+
+        double chgT0 = -1; int chgB0;
+
+        // Hours until full on the charger; -1 — not known yet
+        public double HoursToFull { get { double r = ChargePerHour; return r > 0 && Charging && Battery >= 0 && Battery < 100 ? (100 - Battery) / r : -1; } }
 
         // Hours left; -1 — not known yet
         public double HoursLeft { get { double d = DrainPerHour; return d > 0 && !Charging && Battery >= 0 ? Battery / d : -1; } }
@@ -316,7 +346,16 @@ namespace Glowstick
             if (l == 0 && s == 0) rumbleTest = false;
         }
 
-        public void TickRate() { ReportRate = demo ? Showcase.Rate(this) : Interlocked.Exchange(ref reports, 0); }
+        // Once a second (the light bar loop): the report rate, and for the link meter the longest silence in that second
+        public void TickRate()
+        {
+            ReportRate = demo ? Showcase.Rate(this) : Interlocked.Exchange(ref reports, 0);
+            if (demo || !Bluetooth) return;   // a cable doesn't drop reports
+            long last = lastReportMs;
+            int gap = worstGap; worstGap = 0;
+            if (last >= 0) gap = (int)Math.Max(gap, Engine.Ms - last);   // nothing came at all
+            link.Second(gap);
+        }
 
         // Light bar color + rumble (+ player LEDs, adaptive triggers on a DualSense) — one output packet
         public bool Send(int r, int g, int b)

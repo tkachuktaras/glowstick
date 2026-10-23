@@ -88,6 +88,7 @@ namespace Glowstick
 
             m.Items.Add(new Separator());
             Add(m, Lang.T("Show battery on the light bar"), () => IfPresent(id, () => Engine.ShowBattery(id)));
+            Add(m, Lang.T("Find (rumble and flash)"), () => IfPresent(id, () => Engine.Find(id)));
             MenuItem test = new MenuItem { Header = Lang.T("Controller test…") };
             test.Click += (s, e) => w.Navigate(MainWindow.Page.Test);
             m.Items.Add(test);

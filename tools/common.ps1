@@ -26,7 +26,7 @@ $vigem = Join-Path $root 'lib\Nefarius.ViGEm.Client.dll'
 $references = @(
     "/reference:$vigem", "/reference:$(Join-Path $fw 'netstandard.dll')",
     '/reference:System.dll', '/reference:System.Core.dll', '/reference:Microsoft.CSharp.dll',
-    '/reference:System.Drawing.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Web.Extensions.dll', '/reference:System.ServiceProcess.dll',
+    '/reference:System.Drawing.dll', '/reference:System.IO.Compression.dll', '/reference:System.IO.Compression.FileSystem.dll', '/reference:System.Windows.Forms.dll', '/reference:System.Web.Extensions.dll', '/reference:System.ServiceProcess.dll',
     "/reference:$(Join-Path $fw 'WPF\PresentationCore.dll')", "/reference:$(Join-Path $fw 'WPF\PresentationFramework.dll')",
     "/reference:$(Join-Path $fw 'WPF\WindowsBase.dll')", "/reference:$(Join-Path $fw 'System.Xaml.dll')"
 )

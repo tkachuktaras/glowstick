@@ -15,7 +15,9 @@ namespace Glowstick
     public class ControllerInfo
     {
         public string Id, Kind, Model, Name, OwnPreset, Warning, Output; public Color Color; public bool Virtual;
-        public int Rate, Battery; public bool Charging; public double HoursLeft, Brightness;
+        public int Rate, Battery; public bool Charging; public double HoursLeft, HoursToFull, Brightness;
+        public bool WeakLink; public int WorstGapMs;   // Bluetooth link losing reports (PadHealth.LinkMeter)
+        public double DriftL = -1, DriftR = -1;          // where the sticks rest, fraction of the throw; -1 — not known yet
     }
 
     // Settings of a specific controller (by MAC): its name. Preset, Output and Brightness are what versions before profiles kept
@@ -236,10 +238,12 @@ namespace Glowstick
                     {
                         Id = d.Id, Kind = d.Bluetooth ? "Bluetooth" : "USB", Model = d.Model, Name = cfg != null ? cfg.Name : "",
                         OwnPreset = d.OwnPreset, Output = d.OutputKind, Color = d.Out.ToColor(), Virtual = d.Virtual, Rate = d.ReportRate,
-                        Battery = d.Battery, Charging = d.Charging, HoursLeft = d.HoursLeft, Brightness = d.PadBrightness,
+                        Battery = d.Battery, Charging = d.Charging, HoursLeft = d.HoursLeft, HoursToFull = d.HoursToFull, Brightness = d.PadBrightness,
+                        WeakLink = d.WeakLink, WorstGapMs = d.WorstGapMs, DriftL = d.DriftL, DriftR = d.DriftR,
                         Warning = d.NoVirtual ? Lang.T("hidden, but the virtual pad wasn't created — games don't see it")
-                            : !GameModeActive || d.Hidden ? null
-                            : Lang.T("games see it directly (couldn't hide it)")
+                            : GameModeActive && !d.Hidden ? Lang.T("games see it directly (couldn't hide it)")
+                            : d.WeakLink ? Lang.F("weak Bluetooth link: input arrives late (gaps up to {0} ms) — move it closer to the PC's Bluetooth adapter", d.WorstGapMs)
+                            : null
                     };
                 }
                 return r;
@@ -271,6 +275,42 @@ namespace Glowstick
         public static void Flash(string id, Rgb color, int blinks)
         {
             foreach (Controller c in Controllers()) if (c.Id == id) Flash(c, color, blinks);
+        }
+
+        // Find a controller: it rumbles and flashes white (always — even with notification flashes off)
+        public static void Find(string id)
+        {
+            foreach (Controller c in Controllers())
+            {
+                if (c.Id != id) continue;
+                Controller pad = c;
+                pad.NotifyColor = Rgb.Hex(0xFFFFFF); pad.NotifyStart = Ms; pad.NotifyUntil = Ms + 6 * 400;
+                try { pad.TestRumble(200, 255); } catch { }
+                ThreadPool.QueueUserWorkItem(_ => { Thread.Sleep(700); try { pad.TestRumble(0, 0); } catch { } });
+            }
+        }
+
+        // Who is who: one after another, every controller blinks its number — the 1st once, the 2nd twice… — in its PS4 player
+        // color, with a pause between them so the count is easy to follow
+        public static void Identify()
+        {
+            Controller[] arr = Controllers();
+            int[] players = { 0x0030FF, 0xFF0000, 0x00FF00, 0xFF0080 };
+            long at = Ms;
+            for (int k = 0; k < arr.Length; k++)
+            {
+                arr[k].NotifyColor = Rgb.Hex(players[k % players.Length]);
+                arr[k].NotifyStart = at; arr[k].NotifyUntil = at + (k + 1) * 400;
+                at = arr[k].NotifyUntil + 800;
+            }
+        }
+
+        // How often a DualShock 4 reports over Bluetooth: 0 — as fast as it goes, else every N ms. Applies with the next packet.
+        public static void SetBtPollMs(int ms)
+        {
+            BtPollMs = Math.Max(0, Math.Min(16, ms));
+            foreach (Controller c in Controllers()) c.BtPollMs = BtPollMs;
+            Settings.Save();
         }
 
         public static void ShowBattery(string id)
@@ -451,7 +491,7 @@ namespace Glowstick
         static Rgb Overlays(Controller d, PadSettings st, Rgb c, long now, double dt)
         {
             if (now < d.BatteryShowUntil) c = PresetLib.BatteryColor(d.Battery, d.Charging, T);
-            if (now < d.NotifyUntil && ((now - d.NotifyStart) / 200) % 2 == 0) c = d.NotifyColor;
+            if (now >= d.NotifyStart && now < d.NotifyUntil && ((now - d.NotifyStart) / 200) % 2 == 0) c = d.NotifyColor;   // a flash can be due later (who is who)
 
             long idle = now - d.LastActiveMs;
             bool dim = st.IdleDimMin > 0 && idle > st.IdleDimMin * 60000L && now >= d.NotifyUntil;

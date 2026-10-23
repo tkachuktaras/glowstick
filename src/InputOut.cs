@@ -21,6 +21,25 @@ namespace Glowstick
         public static void Move(int dx, int dy) { MouseSink(dx, dy, 0, MOVE); }
         public static void Wheel(int delta, bool horizontal) { MouseSink(0, 0, delta, horizontal ? HWHEEL : WHEEL); }
 
+        // The cursor moved by (dx, dy) pixels as an absolute position (SendInput's 0..65535 over the whole desktop): Windows
+        // applies its pointer speed and "Enhance pointer precision" only to relative moves. null — the cursor is unknown.
+        public static int[] CursorTarget(int dx, int dy)
+        {
+            POINT p;
+            if (!GetCursorPos(out p)) return null;
+            int vx = GetSystemMetrics(76), vy = GetSystemMetrics(77), vw = GetSystemMetrics(78), vh = GetSystemMetrics(79);
+            if (vw <= 1 || vh <= 1) return null;
+            int x = Math.Max(vx, Math.Min(vx + vw - 1, p.X + dx)), y = Math.Max(vy, Math.Min(vy + vh - 1, p.Y + dy));
+            return new[] { ToAbsolute(x - vx, vw), ToAbsolute(y - vy, vh) };
+        }
+
+        // Windows maps an absolute coordinate back as pixel = n * size / 65536 (rounded down): the smallest n that lands on it
+        internal static int ToAbsolute(int pixel, int size) { return Math.Min(65535, (int)Math.Ceiling(pixel * 65536.0 / size)); }
+
+        [StructLayout(LayoutKind.Sequential)] struct POINT { public int X, Y; }
+        [DllImport("user32.dll")] static extern bool GetCursorPos(out POINT p);
+        [DllImport("user32.dll")] static extern int GetSystemMetrics(int index);
+
         // ---------- SendInput ----------
         [StructLayout(LayoutKind.Sequential)] struct MOUSEINPUT { public int dx, dy, mouseData, dwFlags, time; public IntPtr extra; }
         [StructLayout(LayoutKind.Sequential)] struct KEYBDINPUT { public ushort wVk, wScan; public int dwFlags, time; public IntPtr extra; }

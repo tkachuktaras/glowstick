@@ -36,6 +36,18 @@ namespace Glowstick
             langRow.Children.Add(lang); langRow.Children.Add(restart);
             general.Children.Add(Row(Lang.T("Language:"), langRow));
 
+            // How often a DualShock 4 reports over Bluetooth (the output packet asks for it)
+            int[] polls = { 0, 2, 4, 8, 16 };
+            string[] pollLabels = Array.ConvertAll(polls, ms => ms == 0 ? Lang.T("As fast as it goes (default)") : Lang.F("Every {0} ms (~{1} Hz)", ms, 1000 / ms));
+            ComboBox poll = Kit.Combo(pollLabels, Math.Max(0, Array.IndexOf(polls, Engine.BtPollMs)), i => Engine.SetBtPollMs(polls[i]));
+            poll.Width = BoxWidth;
+            FrameworkElement pollRow = Row(Lang.T("Bluetooth rate:"), poll);
+            pollRow.Margin = new Thickness(0, 10, 0, 0);
+            general.Children.Add(pollRow);
+            TextBlock pollNote = new TextBlock { Text = Lang.T("DualShock 4 over Bluetooth: how often it sends its input. Slower — less load when several controllers share one adapter, a little longer battery."),
+                Style = Theme.Style("MutedText"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(120, 4, 0, 0) };
+            general.Children.Add(pollNote);
+
             CheckBox auto = new CheckBox { Content = Lang.T("Start with Windows (in the tray)"), IsEnabled = Engine.IsAdmin || Showcase.On,
                 IsChecked = Showcase.On || Engine.IsAdmin && Autostart.Exists(Autostart.LogonTask), Margin = new Thickness(0, 10, 0, 0) };
             auto.Click += (s, e) =>
@@ -60,6 +72,20 @@ namespace Glowstick
             buttons.Children.Add(check); buttons.Children.Add(log); buttons.Children.Add(tray); buttons.Children.Add(exit);
             general.Children.Add(buttons);
 
+            // ---------- backup ----------
+            StackPanel backup = Section(Lang.T("Backup"));
+            backup.Children.Add(new TextBlock { Style = Theme.Style("MutedText"), TextWrapping = TextWrapping.Wrap,
+                Text = Lang.T("Everything in one file: presets, profiles, game profiles, macros and the battery history. A copy is also made by itself before every update.") });
+            WrapPanel backupButtons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+            Button save = new Button { Content = Lang.T("Back up…"), Margin = new Thickness(0, 0, 8, 8) };
+            save.Click += (s, e) => SaveBackup();
+            Button restore = new Button { Content = Lang.T("Restore…"), Margin = new Thickness(0, 0, 8, 8) };
+            restore.Click += (s, e) => RestoreBackup();
+            Button autoDir = new Button { Content = Lang.T("Automatic copies"), Margin = new Thickness(0, 0, 8, 8) };
+            autoDir.Click += (s, e) => { Directory.CreateDirectory(Backup.AutoDir); UiApp.OpenUrl(Backup.AutoDir); };
+            backupButtons.Children.Add(save); backupButtons.Children.Add(restore); backupButtons.Children.Add(autoDir);
+            backup.Children.Add(backupButtons);
+
             // The light bar, power, touchpad and hotkey settings are in the profile (Profiles page, ControlSettings)
             LicenseSettings.Add(this);   // the Pro key — in the free build too (it downloads Pro)
 
@@ -75,6 +101,31 @@ namespace Glowstick
             about.Children.Add(remove);
 
             Content = new ScrollViewer { Content = page, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        }
+
+        static string BackupFilter { get { return Lang.T("Glowstick backup") + " (*" + Backup.Extension + ")|*" + Backup.Extension; } }
+
+        void SaveBackup()
+        {
+            Microsoft.Win32.SaveFileDialog d = new Microsoft.Win32.SaveFileDialog { Filter = BackupFilter, Title = Lang.T("Back up…"),
+                FileName = "Glowstick " + DateTime.Now.ToString("yyyy-MM-dd") + Backup.Extension };
+            if (d.ShowDialog(UiApp.Main) != true) return;
+            try { Backup.Create(d.FileName); }
+            catch (Exception ex) { Dialogs.Info(UiApp.Main, "Glowstick", Lang.F("Couldn't save the backup: {0}", ex.Message)); }
+        }
+
+        void RestoreBackup()
+        {
+            Microsoft.Win32.OpenFileDialog d = new Microsoft.Win32.OpenFileDialog { Filter = BackupFilter, Title = Lang.T("Restore…") };
+            if (Directory.Exists(Backup.AutoDir)) d.InitialDirectory = Backup.AutoDir;
+            if (d.ShowDialog(UiApp.Main) != true) return;
+            string file = d.FileName;
+            Dialogs.Confirm(UiApp.Main, "Glowstick", Lang.T("Replace all the settings with the ones from this backup? Glowstick restarts."), () =>
+            {
+                string err = Backup.Restore(file);
+                if (err != null) Dialogs.Info(UiApp.Main, "Glowstick", Lang.F("Couldn't restore the backup: {0}", err));
+                else UiApp.Restart();
+            });
         }
 
         internal StackPanel ProSection;   // set by LicenseSettings
@@ -97,7 +148,7 @@ namespace Glowstick
         internal StackPanel Section(string title) { return Kit.Card(page, title); }
 
         // A labelled setting: every label in one narrow column, every box the same width (BoxWidth) right after it
-        internal const double BoxWidth = 220;
+        internal const double BoxWidth = 280;
         internal static FrameworkElement Row(string label, FrameworkElement control)
         {
             Grid g = new Grid();

@@ -23,14 +23,23 @@ namespace Glowstick
             return "~" + (hh == 0 ? Lang.F("{0} min", mm) : mm == 0 ? Lang.F("{0} h", hh) : Lang.F("{0} h {1:00} min", hh, mm));
         }
 
-        // Second line of a controller tile: "82% ⚡ · USB", "45% · BT · ~3 h 15 min", "BT"
-        public static string PadLine(ControllerInfo c)
+        // Battery and connection: "82% ⚡ · USB · ~1 h 10 min to full", "45% · BT · ~3 h 15 min", "BT". compact (a tile, too
+        // narrow for it) — no time to full on the charger
+        public static string PadLine(ControllerInfo c, bool compact = false)
         {
             string kind = c.Kind == "Bluetooth" ? "BT" : "USB";
             if (c.Battery < 0) return kind;
             string s = c.Battery + "%" + (c.Charging ? " ⚡" : "") + " · " + kind;
-            string left = c.Charging ? "" : Hours(c.HoursLeft);
+            string left = compact ? (c.Charging ? "" : Hours(c.HoursLeft)) : TimeLeft(c.Charging, c.HoursLeft, c.HoursToFull);
             return left != "" ? s + " · " + left : s;
+        }
+
+        // "~3 h 15 min" off the charger, "~1 h 10 min to full" on it; "" — not known yet
+        public static string TimeLeft(bool charging, double hoursLeft, double hoursToFull)
+        {
+            if (!charging) return Hours(hoursLeft);
+            string full = Hours(hoursToFull);
+            return full == "" ? "" : Lang.F("{0} to full", full);
         }
 
         // Up to 4 controllers — one row of 4 slots; more — two rows (as the classic window did)

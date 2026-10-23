@@ -23,6 +23,7 @@ namespace Glowstick
         public double Friction = 0.5;      // 0 .. 1 — how quickly the glide stops
         public bool InvertX, InvertY;
         public bool RightHalfClick;        // clicking the right half of the pad = right button
+        public bool Unaccelerated = true;  // move the cursor by exact pixels: Windows' pointer speed / "Enhance pointer precision" left out
 
         public TouchConfig Clone() { return (TouchConfig)MemberwiseClone(); }
 
@@ -32,7 +33,7 @@ namespace Glowstick
             {
                 { "Absolute", Absolute }, { "Sens", Sens }, { "Accel", Accel }, { "AccelMax", AccelMax }, { "Jitter", Jitter }, { "TapClick", TapClick }, { "TapDrag", TapDrag },
                 { "Scroll", Scroll }, { "ScrollSens", ScrollSens }, { "NaturalScroll", NaturalScroll }, { "Trackball", Trackball }, { "Friction", Friction },
-                { "InvertX", InvertX }, { "InvertY", InvertY }, { "RightHalfClick", RightHalfClick }
+                { "InvertX", InvertX }, { "InvertY", InvertY }, { "RightHalfClick", RightHalfClick }, { "Unaccelerated", Unaccelerated }
             };
         }
 
@@ -59,6 +60,7 @@ namespace Glowstick
                 if (d.TryGetValue("InvertX", out v)) c.InvertX = Convert.ToBoolean(v);
                 if (d.TryGetValue("InvertY", out v)) c.InvertY = Convert.ToBoolean(v);
                 if (d.TryGetValue("RightHalfClick", out v)) c.RightHalfClick = Convert.ToBoolean(v);
+                if (d.TryGetValue("Unaccelerated", out v)) c.Unaccelerated = Convert.ToBoolean(v);
             }
             catch { }
             return c;
@@ -78,6 +80,9 @@ namespace Glowstick
 
         // Where the mouse events go — InputOut (SendInput); tests swap it for a recorder (dx, dy, data, flags)
         internal Action<int, int, int, int> Output = InputOut.Mouse;
+        // Where the cursor lands for an unaccelerated move (absolute coordinates) — InputOut.CursorTarget; tests swap it
+        internal Func<int, int, int[]> Target = InputOut.CursorTarget;
+        bool unaccelerated;   // TouchConfig.Unaccelerated of the report being processed
 
         bool had1, had2, clickDown, clickRight, dragDown;
         byte id1;
@@ -101,6 +106,7 @@ namespace Glowstick
         public void Process(ref Pad p, TouchConfig c, double now)
         {
             double dt = started ? Math.Max(0.1, Math.Min(50, now - lastMs)) : 4;
+            unaccelerated = c.Unaccelerated;
             lastMs = now; started = true;
             int fingers = (p.Touch1 ? 1 : 0) + (p.Touch2 ? 1 : 0);
 
@@ -210,7 +216,15 @@ namespace Glowstick
             if (f == 1) pendX = pendY = 0;
             accX += ox; accY += oy;
             int mx = (int)accX, my = (int)accY;
-            if (mx != 0 || my != 0) { accX -= mx; accY -= my; Output(mx, my, 0, MOVE); }
+            if (mx != 0 || my != 0) { accX -= mx; accY -= my; Move(mx, my); }
+        }
+
+        // A relative cursor move — sent as the absolute position it ends at when Windows' own acceleration is to be left out
+        void Move(int mx, int my)
+        {
+            int[] at = unaccelerated ? Target(mx, my) : null;
+            if (at != null) Output(at[0], at[1], 0, MOVE | ABSOLUTE | VIRTUALDESK);
+            else Output(mx, my, 0, MOVE);
         }
 
         // Pointer acceleration from the finger speed (touchpad units per ms): a smooth curve from 0.45× (slow, precise)
@@ -228,7 +242,7 @@ namespace Glowstick
             if (Math.Abs(velX) + Math.Abs(velY) < 0.02) { gliding = false; return; }
             accX += velX * dt; accY += velY * dt;
             int mx = (int)accX, my = (int)accY;
-            if (mx != 0 || my != 0) { accX -= mx; accY -= my; Output(mx, my, 0, MOVE); }
+            if (mx != 0 || my != 0) { accX -= mx; accY -= my; Move(mx, my); }
         }
 
         // Release the buttons if the mode was turned off mid-click

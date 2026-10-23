@@ -1,5 +1,5 @@
 // Tray icon (WinForms NotifyIcon — WPF has none; it runs fine on the WPF dispatcher thread):
-// menu, battery icon of the first controller, low-battery alerts, update and other balloons.
+// menu, battery icon of the first controller, low-battery and "charged" alerts, update and other balloons.
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -36,6 +36,7 @@ namespace Glowstick
         readonly ContextMenuStrip menu = new ContextMenuStrip();
         readonly DispatcherTimer battery = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };   // runs even when the window is hidden
         readonly Dictionary<string, int> lowWarned = new Dictionary<string, int>();   // controller → 0 / 1 (low) / 2 (critical)
+        readonly HashSet<string> charging = new HashSet<string>();   // seen charging below 100% — say when it's full
         Icon batteryIcon;
         int batterySegments;
         string balloonUrl;              // what clicking the current balloon opens (null — nothing)
@@ -121,6 +122,13 @@ namespace Glowstick
                 if (first < 0) first = c.Battery;
                 int had; lowWarned.TryGetValue(c.Id, out had);
                 int level = c.Charging ? 0 : c.Battery <= 12 ? 2 : c.Battery <= 25 ? 1 : 0;
+                if (!c.Charging) charging.Remove(c.Id);
+                else if (c.Battery < 100) charging.Add(c.Id);
+                else if (charging.Remove(c.Id) && !Showcase.On)
+                {
+                    Engine.Flash(c.Id, Rgb.Hex(0x00FF40), 2);
+                    Balloon(Lang.T("Glowstick — charged"), Lang.F("{0} is fully charged.", Engine.DisplayName(c, k)), ToolTipIcon.Info, null);
+                }
                 if (c.Charging || c.Battery >= 50) lowWarned[c.Id] = 0;   // charged — warn again next time
                 else if (level > had && !Showcase.On)   // the showcase's made-up low charge warns nobody
                 {

@@ -44,11 +44,13 @@ Needs Windows 10/11 and a DualShock 4 or DualSense (USB or Bluetooth).
 ### Free
 
 - **Presets:** solid colors, pairs, player colors and three animations, with brightness and speed.
-- **Battery in the tray**, with a warning when it runs low.
+- **Battery in the tray**, with a warning when it runs low, a "charged" alert and the time to a full charge.
 - **Hotkeys (hold PS):** switch presets, change brightness, show the battery, toggle the touchpad mouse, turn a Bluetooth controller off.
 - **Touchpad as mouse:** cursor, scrolling, tap to click, drag; turns itself off in fullscreen games.
 - **DualSense:** light bar, rumble, battery, touchpad, gyro and the player LEDs.
 - **Controller test:** buttons, sticks, triggers, touchpad, gyro, rumble.
+- **Controller health:** warnings for a weak Bluetooth link and a drifting stick; find a controller (it rumbles and flashes) or see who is who.
+- **Backup** of all settings in one file, made by itself before every update.
 - **Updates** in one click.
 
 One controller in the free version.

@@ -20,7 +20,7 @@ namespace Glowstick
         static Application app;
         static MainWindow main;
         static Tray tray;
-        static bool exiting, uninstalled, installing;
+        static bool exiting, uninstalled, installing, restored;
         public static MainWindow Main { get { return main; } }
 
         // Drivers were installed or the install state changed (the game mode card updates its button)
@@ -153,11 +153,22 @@ namespace Glowstick
         {
             if (!life.TryBegin()) return false;
             exiting = true;
-            try { if (!uninstalled) Settings.Save(); } catch (Exception e) { Log.Error("save on exit", e); }
+            try { if (!uninstalled && !restored) Settings.Save(); } catch (Exception e) { Log.Error("save on exit", e); }
             try { Engine.Stop(); } catch (Exception e) { Log.Error("stop on exit", e); }
             if (Pro.AppExiting != null) try { Pro.AppExiting(); } catch (Exception e) { Log.Error("pro exit", e); }
             if (tray != null) tray.Dispose();
             return true;
+        }
+
+        // A backup was restored: start again on the restored settings (the new process waits until this one exits, which
+        // doesn't save its own settings over them)
+        public static void Restart()
+        {
+            restored = true;
+            bool hidden = main == null || !main.IsVisible;
+            try { Process.Start(new ProcessStartInfo(System.Reflection.Assembly.GetExecutingAssembly().Location, "--restart" + (hidden ? " -Tray" : "")) { UseShellExecute = false }); }
+            catch (Exception e) { Log.Error("restart", e); }
+            Exit();
         }
 
         static void Crash(string where, Exception e)
@@ -213,6 +224,7 @@ namespace Glowstick
             {
                 if (err == null)
                 {
+                    Backup.Auto();   // the settings as they were, in case the new version gets them wrong
                     string exe = System.Reflection.Assembly.GetExecutingAssembly().Location;
                     err = Updater.Swap(exe, file);
                     if (err == null)
