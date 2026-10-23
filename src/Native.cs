@@ -74,8 +74,14 @@ namespace Glowstick
 
         public static List<HidDeviceEntry> EnumerateHid()
         {
-            List<HidDeviceEntry> res = new List<HidDeviceEntry>();
             Guid g; HidD_GetHidGuid(out g);
+            return EnumerateInterface(g);
+        }
+
+        // The present devices that expose this device interface class (HID, XUSB…)
+        public static List<HidDeviceEntry> EnumerateInterface(Guid g)
+        {
+            List<HidDeviceEntry> res = new List<HidDeviceEntry>();
             IntPtr set = SetupDiGetClassDevs(ref g, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
             if (set == IntPtr.Zero || set == new IntPtr(-1)) return res;
             try

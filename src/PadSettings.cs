@@ -15,6 +15,11 @@ namespace Glowstick
         public bool PlayerLeds = true;     // DualSense: the controller's number on the player LEDs
         public int IdleDimMin = 10;        // turn the light bar off after this many minutes untouched; 0 — never
         public int IdleOffMin = 30;        // turn a Bluetooth controller off after this many minutes untouched; 0 — never
+        public bool ChargeShow = true;     // on the charger and put down: the light bar shows the charge (Engine.Overlays)
+        public string MuteLed = "mic";     // DualSense Mute light (Pro): "" left alone, mic (the PC mic muted — and the button switches it), battery, touch, desktop
+        public bool HapticRumble;          // DualSense (Pro): the newer, sharper rumble emulation
+
+        public static readonly string[] MuteLeds = { "", "mic", "battery", "touch", "desktop" };
 
         public PadSettings Clone() { return (PadSettings)MemberwiseClone(); }
 
@@ -23,7 +28,8 @@ namespace Glowstick
             return new Dictionary<string, object>
             {
                 { "Preset", Preset }, { "Brightness", Brightness }, { "Output", Output }, { "NotifyFlash", NotifyFlash },
-                { "PlayerLeds", PlayerLeds }, { "IdleDimMin", IdleDimMin }, { "IdleOffMin", IdleOffMin }
+                { "PlayerLeds", PlayerLeds }, { "IdleDimMin", IdleDimMin }, { "IdleOffMin", IdleOffMin }, { "ChargeShow", ChargeShow },
+                { "MuteLed", MuteLed }, { "HapticRumble", HapticRumble }
             };
         }
 
@@ -42,6 +48,9 @@ namespace Glowstick
                 if (d.TryGetValue("PlayerLeds", out v)) s.PlayerLeds = Convert.ToBoolean(v);
                 if (d.TryGetValue("IdleDimMin", out v)) s.IdleDimMin = Math.Max(0, Convert.ToInt32(v));
                 if (d.TryGetValue("IdleOffMin", out v)) s.IdleOffMin = Math.Max(0, Convert.ToInt32(v));
+                if (d.TryGetValue("ChargeShow", out v)) s.ChargeShow = Convert.ToBoolean(v);
+                if (d.TryGetValue("MuteLed", out v) && v is string && Array.IndexOf(MuteLeds, (string)v) >= 0) s.MuteLed = (string)v;
+                if (d.TryGetValue("HapticRumble", out v)) s.HapticRumble = Convert.ToBoolean(v);
             }
             catch { }
             return s;

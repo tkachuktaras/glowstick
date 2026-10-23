@@ -59,11 +59,23 @@ namespace Glowstick
                 if (s.TryGetValue("MusicLow", out v)) Live.MusicLow = Math.Max(20, Math.Min(18000, Convert.ToDouble(v)));
                 if (s.TryGetValue("MusicHigh", out v)) Live.MusicHigh = Math.Max(Live.MusicLow + 10, Math.Min(20000, Convert.ToDouble(v)));
                 if (s.TryGetValue("PresetTune", out v)) PresetTunes.Load(v);
+                if (s.TryGetValue("MusicAppMode", out v) && (v as string == "only" || v as string == "except")) AudioCapture.AppMode = (string)v;
+                if (s.TryGetValue("MusicApps", out v) && v is System.Collections.IEnumerable && !(v is string))
+                {
+                    List<string> apps = new List<string>();
+                    foreach (object o in (System.Collections.IEnumerable)v) if (o is string && (string)o != "") apps.Add((string)o);
+                    AudioCapture.Apps = apps.ToArray();
+                }
                 if (s.TryGetValue("BtPollMs", out v)) Engine.BtPollMs = Math.Max(0, Math.Min(16, Convert.ToInt32(v)));
                 if (s.TryGetValue("NotifyFlash", out v)) Engine.Defaults.NotifyFlash = Convert.ToBoolean(v);
                 if (s.TryGetValue("Hotkeys", out v)) Engine.Hotkeys = Convert.ToBoolean(v);
                 if (s.TryGetValue("HotkeyMap", out v)) HotkeyMap.Load(v);
                 if (s.TryGetValue("TouchMouse", out v)) Engine.TouchMouse = Convert.ToBoolean(v);
+                if (s.TryGetValue("DesktopMode", out v)) Engine.DesktopMode = Convert.ToBoolean(v);
+                if (s.TryGetValue("XboxSource", out v)) XboxSource.Enabled = Convert.ToBoolean(v);
+                if (s.TryGetValue("ChargeShow", out v)) Engine.Defaults.ChargeShow = Convert.ToBoolean(v);
+                if (s.TryGetValue("MuteLed", out v) && v is string && Array.IndexOf(PadSettings.MuteLeds, (string)v) >= 0) Engine.Defaults.MuteLed = (string)v;
+                if (s.TryGetValue("HapticRumble", out v)) Engine.Defaults.HapticRumble = Convert.ToBoolean(v);
                 if (s.TryGetValue("Touch", out v)) Engine.Touch = TouchConfig.Load(v);
                 else if (s.TryGetValue("TouchSens", out v)) Engine.Touch.Sens = Math.Max(0.2, Math.Min(4, Convert.ToDouble(v)));   // before 1.2
                 if (s.TryGetValue("IdleDimMin", out v)) Engine.Defaults.IdleDimMin = Math.Max(0, Convert.ToInt32(v));
@@ -145,12 +157,19 @@ namespace Glowstick
                 s["MusicLow"] = Live.MusicLow;
                 s["MusicHigh"] = Live.MusicHigh;
                 s["PresetTune"] = PresetTunes.Save();
+                s["MusicAppMode"] = AudioCapture.AppMode;
+                s["MusicApps"] = new List<string>(AudioCapture.Apps);
                 s.Remove("GameMode"); s.Remove("VirtualPad");   // game mode is always on, the virtual pad is always a DS4
                 s["BtPollMs"] = Engine.BtPollMs;
                 s["NotifyFlash"] = Engine.Defaults.NotifyFlash;
                 s["Hotkeys"] = Engine.Hotkeys;
                 s["HotkeyMap"] = HotkeyMap.Save();
                 s["TouchMouse"] = Engine.TouchMouse;
+                s["DesktopMode"] = Engine.DesktopMode;
+                s["XboxSource"] = XboxSource.Enabled;
+                s["ChargeShow"] = Engine.Defaults.ChargeShow;
+                s["MuteLed"] = Engine.Defaults.MuteLed;
+                s["HapticRumble"] = Engine.Defaults.HapticRumble;
                 s["Touch"] = Engine.Touch.Save();
                 s.Remove("TouchSens");
                 s["IdleDimMin"] = Engine.Defaults.IdleDimMin;

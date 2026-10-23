@@ -45,6 +45,9 @@ namespace Glowstick
         public double PadBrightness = 1.0;     // per-controller brightness multiplier on top of the global one (Pro)
         public bool IdleOff;
         public volatile bool PlayerLeds = true;   // DualSense: the controller's number on the player LEDs (from its profile)
+        public volatile int MuteLed = -1;          // DualSense: the Mute light (-1 left alone, 0 off, 1 on) — Engine sets it from the profile
+        public volatile bool HapticRumble;         // DualSense: the newer, sharper rumble emulation (from the profile)
+        public volatile bool MuteHeld;             // DualSense: the Mute button is down
 
         // What games should see this controller as: "Xbox" — a virtual Xbox 360, anything else — a virtual DualShock 4 (Pro).
         public volatile string OutputKind = "DS4";
@@ -69,8 +72,11 @@ namespace Glowstick
         Btn prevBtn;
         byte restLX, restLY, restRX, restRY;
         double batT0 = -1; int batB0;
-        int ds5Pct = -1, ds5Counter; bool ds5Chg;
+        int ds5Pct = -1, ds5Counter; bool ds5Chg, ds5Mute;
         readonly Touchpad touch = new Touchpad();
+        readonly DesktopPad desktop = new DesktopPad();
+        readonly byte[] atRest = new byte[63];
+        bool desktopWas;
         readonly PsHotkeys hotkeys;
         bool demo;   // a made-up controller of the showcase mode: no device behind it
         // Health (PadHealth.cs): gaps between reports (Bluetooth link), where the sticks rest
@@ -85,6 +91,7 @@ namespace Glowstick
         public double DriftR { get { return driftR.Offset; } }
 
         public bool Virtual { get { VirtualPad v = vpad; return demo || v != null && v.Connected; } }
+        public int XInputSlot { get { VirtualPad v = vpad; return v != null ? v.XInputSlot : -1; } }
 
         // Product IDs of DualSense and DualSense Edge
         public static string[] DualSensePids { get { return DualSenseWire.Pids; } }
@@ -97,6 +104,7 @@ namespace Glowstick
             foreach (string pid in DualSensePids) if (lp.Contains("pid_" + pid) || lp.Contains("pid&" + pid)) DualSense = true;
             outBuf = new byte[Math.Max(outLen, Bluetooth ? 78 : DualSense ? 48 : 32)];
             hotkeys = new PsHotkeys(a => Engine.Hotkey(this, a));   // the action itself runs in the light bar loop
+            touch.Haptic = Pulse;
         }
 
         public string Model { get { return DualSense ? "DualSense" : "DualShock 4"; } }
@@ -173,8 +181,19 @@ namespace Glowstick
         {
             OutputKind = kind == "Xbox" ? "Xbox" : "DS4";
             VirtualPad v = vpad;
-            if (v == null) return;
+            if (v == null || VirtualHidden) return;
             lock (writeLock) v.Switch(OutputKind);
+        }
+
+        // Games don't see this controller at all while hidden (Pro co-pilot: its input goes into another controller's
+        // virtual pad); its own virtual pad is unplugged and plugged back in. No effect outside game mode.
+        public volatile bool VirtualHidden;
+        public void HideVirtual(bool hide)
+        {
+            VirtualPad v = vpad;
+            if (v == null || hide == VirtualHidden) return;
+            VirtualHidden = hide;
+            lock (writeLock) { if (hide) v.Disconnect(); else v.Switch(OutputKind); }
         }
 
         // Rumble from the game (through the virtual pad)
@@ -220,12 +239,14 @@ namespace Glowstick
 
                 long now = Engine.Ms;
                 Btn btn = Pad.ReadButtons(raw);
+                bool desk = Engine.DesktopActive;   // the controller drives the PC: the game sees it at rest
                 VirtualPad v = vpad;
                 if (v != null && v.Connected)
                 {
                     byte[] send = raw;
                     if (Engine.Hotkeys && hotkeys.Update(btn, now)) send = hotkeys.Mask(raw, now);
                     if (Pro.MapReport != null) send = Pro.MapReport(this, raw, send, now);
+                    if (desk) send = DesktopPad.AtRest(raw, atRest);
                     v.Submit(send);
                 }
                 else if (Engine.Hotkeys) hotkeys.Update(btn, now);   // no game to hide them from — the actions still fire
@@ -239,6 +260,7 @@ namespace Glowstick
                 bool idle = btn == 0 && raw[7] < 10 && raw[8] < 10;   // put down: nothing held
                 driftL.Add(raw[0], raw[1], idle, now);
                 driftR.Add(raw[2], raw[3], idle, now);
+                if (Pro.InputReport != null) Pro.InputReport(this, raw, now);   // Pro: the motion server (DSU) sends it on
                 if (full)
                 {
                     if (DualSense) UpdateBattery(ds5Pct, ds5Chg, now);
@@ -248,7 +270,7 @@ namespace Glowstick
                         UpdateBattery(Math.Min(100, (b & 0x0F) * 100 / (chg ? 11 : 8)), chg, now);
                     }
                 }
-                if (Engine.TouchMouse && !Fullscreen.App)
+                if (Engine.TouchMouse && !Fullscreen.App && (Pro.TouchMouseOff == null || !Pro.TouchMouseOff(this)))
                 {
                     Pad p = Pad.Parse(raw);
                     TouchConfig tc = Pro.TouchFor != null ? Pro.TouchFor(this) : null;   // a Pro input profile may bring its own
@@ -256,8 +278,11 @@ namespace Glowstick
                     touchWas = true;
                 }
                 else if (touchWas) { touch.Reset(); touchWas = false; }
+                if (desk) { desktop.Process(Pad.Parse(raw), now); desktopWas = true; }
+                else if (desktopWas) { desktop.Release(); desktopWas = false; }
             }
             if (touchWas) touch.Reset();
+            if (desktopWas) desktop.Release();
         }
 
         // A HID input report (n bytes in buf) → the 63-byte DS4 layout in raw. False — not an input report we use.
@@ -268,7 +293,9 @@ namespace Glowstick
             {
                 int o = buf[0] == 0x31 && n >= 78 ? 2 : buf[0] == 0x01 && n >= 64 ? 1 : 0;   // BT / USB
                 if (o == 0) return false;
-                DualSenseWire.ToDs4(buf, o, raw, ref ds5Counter, out ds5Pct, out ds5Chg);
+                DualSenseWire.ToDs4(buf, o, raw, ref ds5Counter, out ds5Pct, out ds5Chg, out ds5Mute);
+                if (ds5Mute && !MuteHeld) Engine.MutePressed(this);
+                MuteHeld = ds5Mute;
                 full = true;
                 return true;
             }
@@ -337,6 +364,15 @@ namespace Glowstick
             lock (lastLock) { if (!hasLast) return false; Buffer.BlockCopy(last, 0, dst, 0, 63); return true; }
         }
 
+        // A faint, short rumble — the touchpad's tap-click (off the read thread: the write mustn't hold up the input)
+        void Pulse()
+        {
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                try { TestRumble(0, 70); Thread.Sleep(35); TestRumble(0, 0); } catch { }
+            });
+        }
+
         // Rumble test from the test window (works without game mode too)
         public void TestRumble(byte l, byte s)
         {
@@ -368,7 +404,7 @@ namespace Glowstick
                 Array.Clear(buf, 0, buf.Length);
                 bool rumble = Virtual || rumbleTest;   // only in game mode, so we don't override someone else's rumble otherwise
                 int len = DualSense
-                    ? DualSenseWire.Output(buf, Bluetooth, outLen, ref ds5Seq, ref ds5Released, rumble, small, large, trigL, trigR, PlayerLeds, Player, r, g, b)
+                    ? DualSenseWire.Output(buf, Bluetooth, outLen, ref ds5Seq, ref ds5Released, rumble, small, large, trigL, trigR, PlayerLeds, Player, r, g, b, MuteLed, HapticRumble)
                     : DualShock4Wire.Output(buf, Bluetooth, outLen, BtPollMs, rumble, small, large, r, g, b);
                 int written;
                 bool ok = Native.WriteFile(hWrite, buf, len, out written, IntPtr.Zero) || Native.HidD_SetOutputReport(hWrite, buf, len);

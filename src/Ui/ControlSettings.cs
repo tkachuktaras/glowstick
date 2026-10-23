@@ -39,6 +39,15 @@ namespace Glowstick
             }
             Kit.Toggle(p, Lang.T("Notification flashes: controller connected — white, low battery — red"), s.NotifyFlash, v => s.NotifyFlash = v);
             Kit.Toggle(p, Lang.T("DualSense: show the controller number on the player LEDs"), s.PlayerLeds, v => s.PlayerLeds = v);
+            // DualSense Mute light and rumble kind — Pro
+            string[] muteLabels = { Lang.T("Left alone"), Lang.T("The PC microphone is muted"), Lang.T("Low battery (20% or less)"),
+                                    Lang.T("Touchpad as mouse is on"), Lang.T("Desktop mode is on") };
+            ComboBox mute = Kit.Combo(p, (Pro.Unlocked ? "" : "🔒 ") + Lang.T("DualSense Mute light shows:"), muteLabels, Math.Max(0, Array.IndexOf(PadSettings.MuteLeds, s.MuteLed)), i => s.MuteLed = PadSettings.MuteLeds[i]);
+            TextBlock muteNote = Kit.Note(p, Lang.T("Then the Mute button switches the PC microphone (Discord, games, calls)."));
+            muteNote.Margin = new Thickness(0, 4, 0, 0);
+            CheckBox haptic = Kit.Toggle(p, (Pro.Unlocked ? "" : "🔒 ") + Lang.T("DualSense: haptic rumble (sharper and quieter; firmware 2.24 or newer)"), s.HapticRumble && Pro.Unlocked, v => s.HapticRumble = v);
+            if (!Pro.Unlocked) { mute.IsEnabled = false; haptic.IsEnabled = false; }
+            Kit.Toggle(p, Lang.T("On the charger and put down, the light bar shows the charge filling up (dim green when full)"), s.ChargeShow, v => s.ChargeShow = v);
             Minutes(p, Lang.T("Turn off the light bar if the controller wasn't touched"), s.IdleDimMin, v => s.IdleDimMin = v);
         }
 
@@ -56,12 +65,12 @@ namespace Glowstick
             DockPanel row = new DockPanel { Margin = new Thickness(0, parent.Children.Count > 0 ? 10 : 0, 0, 0) };
             TextBox box = new TextBox { Width = 70, Text = Math.Max(0, Math.Min(240, value)).ToString(), MaxLength = 3, HorizontalContentAlignment = HorizontalAlignment.Center };
             box.PreviewTextInput += (s, e) => { foreach (char ch in e.Text) if (!char.IsDigit(ch)) e.Handled = true; };
-            // Saved as you type — focus doesn't always leave the box (a click on an empty spot, closing the window)
+            // Saved as you type (half a second after the last key) — focus doesn't always leave the box (a click on an empty spot, closing the window)
             box.TextChanged += (s, e) =>
             {
                 int v;
                 if (!int.TryParse(box.Text, out v)) return;   // empty while retyping — keep the last value
-                set(Math.Max(0, Math.Min(240, v))); Settings.Save();
+                set(Math.Max(0, Math.Min(240, v))); Settings.SaveSoon();
             };
             // Leaving the box or Enter: show what was actually saved (empty → 0, over 240 → 240)
             Action tidy = () =>
@@ -88,6 +97,10 @@ namespace Glowstick
             StackPanel opts = new StackPanel { Margin = new Thickness(50, 0, 0, 0) };
             TouchSettings.Build(opts, Engine.Touch);
             p.Children.Add(opts);
+            CheckBox desk = Kit.Toggle(p, Lang.T("Desktop mode: with no game in front the controller drives the PC — left stick cursor, right stick scroll, R2 / L2 click, ✕ Enter, ○ Esc, □ Backspace, △ Space, d-pad arrows, L1 / R1 switch windows, Options Start menu. PS + Share turns it on and off."),
+                Engine.DesktopMode, v => Engine.DesktopMode = v);
+            desk.Margin = new Thickness(0, 14, 0, 0);
+            Follow(desk, () => Engine.DesktopMode);
         }
 
         // PS hotkeys: on / off and the table of combos
@@ -110,7 +123,8 @@ namespace Glowstick
         static FrameworkElement HotkeyTable()
         {
             string[] titles = { Lang.T("Previous preset"), Lang.T("Next preset"), Lang.T("Brighter"), Lang.T("Dimmer"),
-                                Lang.T("Show battery on the light bar"), Lang.T("Touchpad as mouse (on/off)"), Lang.T("Turn off a Bluetooth controller") };
+                                Lang.T("Show battery on the light bar"), Lang.T("Touchpad as mouse (on/off)"), Lang.T("Turn off a Bluetooth controller"),
+                                Lang.T("Desktop mode (on/off)"), Lang.T("On-screen keyboard") };
             bool pro = Pro.Unlocked;
             StackPanel table = new StackPanel { Margin = new Thickness(50, 8, 0, 0) };
             List<Button> picks = new List<Button>();

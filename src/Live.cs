@@ -20,7 +20,6 @@ namespace Glowstick
         static readonly Stopwatch clock = Stopwatch.StartNew();
 
         // ---------- audio ----------
-        [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")] class MMDeviceEnumeratorCom { }
 
         [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         interface IMMDeviceEnumerator
@@ -108,7 +107,7 @@ namespace Glowstick
             meterAt = now;
             try
             {
-                IMMDeviceEnumerator en = (IMMDeviceEnumerator)new MMDeviceEnumeratorCom();
+                IMMDeviceEnumerator en = (IMMDeviceEnumerator)Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")));   // by CLSID — see AudioCapture.Enumerator
                 IMMDevice dev;
                 if (en.GetDefaultAudioEndpoint(0 /* eRender */, 1 /* eMultimedia */, out dev) != 0) { meter = null; return; }
                 Guid iid = typeof(IAudioMeterInformation).GUID; object o;

@@ -15,6 +15,14 @@ namespace Glowstick
         // (7 and 8 are bitwise the same as DS4), 15-26 gyro/accelerometer, 27-30 sensor time (×0.33 µs), 32-39 touchpad, 52 — battery.
         public static void ToDs4(byte[] b, int o, byte[] raw, ref int counter, out int pct, out bool charging)
         {
+            bool mute;
+            ToDs4(b, o, raw, ref counter, out pct, out charging, out mute);
+        }
+
+        // …and the Mute button, which the DS4 layout has no place for
+        public static void ToDs4(byte[] b, int o, byte[] raw, ref int counter, out int pct, out bool charging, out bool mute)
+        {
+            mute = (b[o + 9] & 0x04) != 0;
             Array.Clear(raw, 0, raw.Length);
             raw[0] = b[o]; raw[1] = b[o + 1]; raw[2] = b[o + 2]; raw[3] = b[o + 3];
             raw[4] = b[o + 7]; raw[5] = b[o + 8];
@@ -47,18 +55,21 @@ namespace Glowstick
         // Output packet: USB — 0x02, BT — 0x31 + sequence + tag 0x10 + CRC32; the common part starts at o. The first packet
         // turns off the blue connect animation (otherwise the color won't apply), then — light bar, player LEDs, rumble,
         // adaptive triggers (11-byte FFB each, null — none). Returns the length to write; buf must be cleared.
+        // muteLed: -1 — left alone, 0 off, 1 on, 2 pulsing. haptic — the newer rumble emulation (firmware 2.24+: sharper, quieter)
         public static int Output(byte[] buf, bool bluetooth, int outLen, ref int seq, ref bool released, bool rumble, byte small, byte large,
-            byte[] trigL, byte[] trigR, bool playerLeds, int player, int r, int g, int b)
+            byte[] trigL, byte[] trigR, bool playerLeds, int player, int r, int g, int b, int muteLed = -1, bool haptic = false)
         {
             int o;
             if (bluetooth) { buf[0] = 0x31; buf[1] = (byte)(seq << 4); seq = (seq + 1) & 0x0F; buf[2] = 0x10; o = 3; }
             else { buf[0] = 0x02; o = 1; }
-            buf[o] = (byte)(rumble ? 0x03 : 0x00);                    // compatible rumble + motor select
+            buf[o] = (byte)(rumble ? (haptic ? 0x02 : 0x03) : 0x00);    // compatible rumble (or the newer one, ValidFlag2 bit 2) + motor select
+            if (rumble && haptic) buf[o + 38] |= 0x04;
             buf[o + 1] = (byte)(0x04 | (playerLeds ? 0x10 : 0));      // light bar, player LEDs
+            if (muteLed >= 0) { buf[o + 1] |= 0x01; buf[o + 8] = (byte)muteLed; }   // ValidFlag1 bit 0: the Mute light
             buf[o + 2] = small; buf[o + 3] = large;
             if (trigR != null) { buf[o] |= 0x04; Array.Copy(trigR, 0, buf, o + 10, 11); }   // ValidFlag0 bit2 / bit3, FFB at o+10 / o+21
             if (trigL != null) { buf[o] |= 0x08; Array.Copy(trigL, 0, buf, o + 21, 11); }
-            if (!released) { buf[o + 38] = 0x02; buf[o + 41] = 0x02; released = true; }
+            if (!released) { buf[o + 38] |= 0x02; buf[o + 41] = 0x02; released = true; }
             buf[o + 43] = playerLeds && player > 0 ? PlayerLeds[Math.Min(player, PlayerLeds.Length) - 1] : (byte)0;
             buf[o + 44] = (byte)r; buf[o + 45] = (byte)g; buf[o + 46] = (byte)b;
             if (!bluetooth) return Math.Max(outLen, 48);
@@ -111,6 +122,14 @@ namespace Glowstick
         {
             uint c = 0xFFFFFFFF;
             c = Table[(c ^ 0xA2) & 0xFF] ^ (c >> 8);   // BT output seed byte
+            for (int i = 0; i < len; i++) c = Table[(c ^ data[i]) & 0xFF] ^ (c >> 8);
+            return ~c;
+        }
+
+        // The plain CRC32 (zlib / PNG) of data[0..len)
+        public static uint Of(byte[] data, int len)
+        {
+            uint c = 0xFFFFFFFF;
             for (int i = 0; i < len; i++) c = Table[(c ^ data[i]) & 0xFF] ^ (c >> 8);
             return ~c;
         }

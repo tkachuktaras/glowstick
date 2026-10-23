@@ -25,6 +25,11 @@ namespace Glowstick
             Kit.Slide(p, v => Lang.F("Glide friction: {0}%", (int)v), 0, 100, Math.Round(c.Friction * 100), v => c.Friction = v / 100.0, 0, 5);
             Kit.Toggle(p, Lang.T("Invert horizontal"), c.InvertX, v => c.InvertX = v);
             Kit.Toggle(p, Lang.T("Invert vertical"), c.InvertY, v => c.InvertY = v);
+            Kit.Toggle(p, Lang.T("A faint rumble on a tap-click, like a real touchpad"), c.HapticClick, v => c.HapticClick = v);
+            Kit.Toggle(p, Lang.T("Edge swipes: in from the left / right — back / forward, down from the top — desktop, up from the bottom — task view"), c.EdgeSwipe, v => c.EdgeSwipe = v);
+            Kit.Toggle(p, Lang.T("Slide along the right edge to scroll"), c.EdgeScroll, v => c.EdgeScroll = v);
+            CheckBox media = Kit.Toggle(p, (Pro.Unlocked ? "" : "🔒 ") + Lang.T("A quick two-finger swipe left / right — previous / next track"), c.MediaSwipe && Pro.Unlocked, v => c.MediaSwipe = v);
+            if (!Pro.Unlocked) { media.IsEnabled = false; media.ToolTip = Lang.T("Available in Glowstick Pro"); }
         }
     }
 }

@@ -6,12 +6,12 @@ using System.Collections.Generic;
 
 namespace Glowstick
 {
-    internal enum HotAction { PrevPreset, NextPreset, Brighter, Dimmer, ShowBattery, TouchMouse, TurnOff }
+    internal enum HotAction { PrevPreset, NextPreset, Brighter, Dimmer, ShowBattery, TouchMouse, TurnOff, DesktopMode, Keyboard }
 
     internal static class HotkeyMap
     {
         public static readonly HotAction[] Actions = (HotAction[])Enum.GetValues(typeof(HotAction));
-        public static readonly Btn[] Defaults = { Btn.Left, Btn.Right, Btn.Up, Btn.Down, Btn.Cross, Btn.Square, Btn.Options };
+        public static readonly Btn[] Defaults = { Btn.Left, Btn.Right, Btn.Up, Btn.Down, Btn.Cross, Btn.Square, Btn.Options, Btn.Share, Btn.Triangle };
         // Buttons a combo can use (not PS itself — PS is always the modifier)
         public static readonly Btn[] Choices = { Btn.Up, Btn.Down, Btn.Left, Btn.Right, Btn.Cross, Btn.Circle, Btn.Square, Btn.Triangle,
                                                  Btn.L1, Btn.R1, Btn.L2, Btn.R2, Btn.L3, Btn.R3, Btn.Share, Btn.Options, Btn.Touch };

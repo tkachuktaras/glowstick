@@ -111,6 +111,15 @@ namespace Glowstick
             return c;
         }
 
+        // The charge display (on the charger, put down): the light bar fills up to the charge every 3 s, in its color
+        // (red → yellow → green); full — a dim steady green
+        public static Rgb ChargeFill(int pct, double t)
+        {
+            if (pct >= 100) return H(0x00FF40).Mul(0.15);
+            double level = Math.Max(0.05, pct / 100.0);
+            return Hsv(level * 0.33, 1, 1).Mul(Math.Min(Frac(t / 3), level));
+        }
+
         public static double Heart(double t)
         {
             double p = Frac(t / 1.1);

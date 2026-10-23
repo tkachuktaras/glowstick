@@ -31,6 +31,7 @@ namespace Glowstick
         readonly Slider music = new Slider { Minimum = 50, Maximum = 300 };   // music reaction (Pro, with a music preset)
         readonly TextBlock lblMusic = new TextBlock();
         readonly Grid musicRow = new Grid { Margin = new Thickness(0, 10, 0, 0) };
+        readonly TextBlock appsInfo = new TextBlock();   // which apps music presets listen to
         readonly ComboBox band = new ComboBox();   // which frequencies music presets follow (app-wide; a preset can have its own)
         static readonly string[] Bands = { "bass", "mid", "high", "all" };
         readonly TextBlock ownNote = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };   // the chosen preset has its own music settings
@@ -90,6 +91,15 @@ namespace Glowstick
             band.SelectionChanged += (s, e) => { if (band.SelectedIndex >= 0) { Live.MusicBand = Bands[band.SelectedIndex]; Settings.Save(); } };
             band.Margin = new Thickness(0, 4, 0, 0);
             mRight.Children.Add(band);
+            // Which apps they listen to: a summary and the dialog to change it
+            DockPanel appsRow = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
+            Button appsBtn = new Button { Content = Lang.T("Apps…"), Padding = new Thickness(10, 2, 10, 2) };
+            appsBtn.Click += (s, e) => { MainWindow w = Window.GetWindow(this) as MainWindow; if (w != null) MusicApps.Show(w, () => appsInfo.Text = MusicApps.Summary()); };
+            DockPanel.SetDock(appsBtn, Dock.Right);
+            appsInfo.Style = Theme.Style("MutedText"); appsInfo.TextTrimming = TextTrimming.CharacterEllipsis; appsInfo.VerticalAlignment = VerticalAlignment.Center; appsInfo.Margin = new Thickness(0, 0, 8, 0);
+            appsInfo.Text = MusicApps.Summary();
+            appsRow.Children.Add(appsBtn); appsRow.Children.Add(appsInfo);
+            mRight.Children.Add(appsRow);
             Grid.SetColumn(mRight, 2);
             musicRow.Children.Add(mLeft); musicRow.Children.Add(mRight);
             Grid.SetRow(musicRow, 1); Grid.SetColumnSpan(musicRow, 3);
@@ -104,10 +114,8 @@ namespace Glowstick
             bright.ValueChanged += (s, e) => { Engine.Brightness = Math.Round(bright.Value) / 100.0; LabelSliders(); };
             speed.ValueChanged += (s, e) => { Engine.Speed = Math.Round(speed.Value) / 100.0; LabelSliders(); };
             music.ValueChanged += (s, e) => { Live.MusicReaction = Math.Round(music.Value) / 100.0; LabelSliders(); };
-            // Save when the drag ends, not on every step
-            bright.PreviewMouseUp += (s, e) => Settings.Save();
-            speed.PreviewMouseUp += (s, e) => Settings.Save();
-            music.PreviewMouseUp += (s, e) => Settings.Save();
+            // Save when the drag ends or a key is let go (arrows), not on every step
+            foreach (Slider sl in new[] { bright, speed, music }) { sl.PreviewMouseUp += (s, e) => Settings.Save(); sl.KeyUp += (s, e) => Settings.Save(); }
             LabelSliders();
             ShowMusic();
 

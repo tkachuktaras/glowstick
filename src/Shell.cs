@@ -11,6 +11,14 @@ namespace Glowstick
 {
     internal static class Shell
     {
+        // PS + △: the Windows on-screen keyboard — opened (as the normal user), or closed if it's open
+        public static void ToggleOnScreenKeyboard()
+        {
+            System.Diagnostics.Process[] open = System.Diagnostics.Process.GetProcessesByName("osk");
+            if (open.Length == 0) { RunAsUser("osk.exe", null); return; }
+            foreach (System.Diagnostics.Process p in open) { try { p.CloseMainWindow(); if (!p.WaitForExit(500)) p.Kill(); } catch { } p.Dispose(); }
+        }
+
         // Starts file (a program, a document or a URL) with arguments as the normal user. Falls back to explorer.exe "file"
         // (also unelevated, but without arguments); never to an elevated start.
         public static bool RunAsUser(string file, string args)

@@ -43,6 +43,10 @@ namespace Glowstick
         public static Func<Controller, double> RumbleScale = null;               // rumble strength multiplier of the controller's input profile
         public static Action<ContextMenu, string> PadMenu = null;                 // extra items in a controller's tile menu (by id)
         public static Action<string> ControllerGone = null;                   // a controller was closed (by id): release what its input mapping holds
+        public static Action<Controller, byte[], long> InputReport = null;
+        public static Func<Controller, bool> TouchMouseOff = null;
+        public static Func<bool> GameRunning = null;
+        public static Func<string, byte[], byte[], long, byte[]> MapPad = null;   // the mapping for a pad that isn't a Controller (Xbox source), by id                             // a game profile's game is running now (desktop mode steps aside)             // the controller's profile uses the touchpad for something else (a stick)     // every physical report (DS4 layout), any mode, read thread — after forwarding
         public static Func<string, bool, double> StickDeadzone = null;          // a controller's left (true) / right stick dead zone in its profile (0 .. 0.5)
         public static Action<string, bool, double> SetStickDeadzone = null;     // …set it (a controller on Default gets a profile of its own)
         public static Action<Dictionary<string, object>> ShowcaseSettings = null;   // the showcase mode: its demo part of settings.json (profiles, macros…)

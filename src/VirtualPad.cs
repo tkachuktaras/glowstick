@@ -25,6 +25,9 @@ namespace Glowstick
 
         public bool Connected { get { return ds4 != null || x360 != null; } }
 
+        // The XInput slot a virtual Xbox 360 pad took (-1 — a DS4, not connected, or unknown) — so the Xbox source doesn't read it
+        public int XInputSlot { get { IXbox360Controller x = x360; try { return x != null ? x.UserIndex : -1; } catch { return -1; } } }
+
         // FeedbackReceived is marked obsolete in ViGEm.NET (AwaitRawOutputReport is the newer way); it works for rumble, and
         // switching needs a feel-check on real hardware — kept until then
 #pragma warning disable 618

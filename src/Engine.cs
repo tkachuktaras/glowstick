@@ -44,7 +44,9 @@ namespace Glowstick
 
         // The Default profile's settings (the only ones in the free build)
         public static readonly PadSettings Defaults = new PadSettings();   // light bar and power; a Pro profile can bring its own
-        public static volatile bool Hotkeys = true, TouchMouse;
+        public static volatile bool Hotkeys = true, TouchMouse, DesktopMode;
+        // Desktop mode drives the PC only with no game in front: nothing fullscreen, no game profile running (Pro)
+        public static bool DesktopActive { get { return DesktopMode && !Fullscreen.App && (Pro.GameRunning == null || !Pro.GameRunning()); } }
         public static TouchConfig Touch = new TouchConfig();   // touchpad-as-mouse behaviour (a Pro profile can bring its own)
 
         // The light bar and power settings a controller follows: its Pro profile's own ones, else the Default profile's
@@ -92,6 +94,7 @@ namespace Glowstick
             running = false;
             Fullscreen.Stop();
             if (worker != null) worker.Join(3000);
+            XboxSource.Stop();
             // Closing: controllers go back to the standard player color (as on a PS4 — 1 blue, 2 red, 3 green, 4 pink), not the last preset's
             Controller[] arr; lock (Lock) arr = Devices.ToArray();
             int[] players = { 0x0030FF, 0xFF0000, 0x00FF00, 0xFF0080 };
@@ -262,8 +265,34 @@ namespace Glowstick
             return c != null && !string.IsNullOrEmpty(c.Name) ? c.Name : Lang.F("Controller {0}", index + 1);
         }
 
+        // The XInput slots our own virtual Xbox 360 pads hold (the Xbox source must not read them back)
+        internal static HashSet<int> OwnXInputSlots()
+        {
+            HashSet<int> s = new HashSet<int>();
+            foreach (Controller c in Controllers()) { int k = c.XInputSlot; if (k >= 0) s.Add(k); }
+            return s;
+        }
+
         // Called from the controller's read thread — the action itself runs in the light bar loop
         internal static void Hotkey(Controller c, HotAction a) { hotkeys.Enqueue(new KeyValuePair<Controller, HotAction>(c, a)); }
+
+        // A DualSense's Mute button was pressed (read thread): with its Mute light on "mic" it switches the PC's microphone (Pro)
+        static readonly ConcurrentQueue<Controller> mutes = new ConcurrentQueue<Controller>();
+        internal static void MutePressed(Controller c) { mutes.Enqueue(c); }
+
+        // The Mute light (Pro): what the profile chose it to show; -1 — left alone
+        internal static int MuteLight(PadSettings st, Controller d)
+        {
+            if (!Pro.Unlocked) return -1;
+            switch (st.MuteLed)
+            {
+                case "mic": return Mic.Muted ? 1 : 0;
+                case "battery": return d.Battery >= 0 && d.Battery <= 20 && !d.Charging ? 1 : 0;
+                case "touch": return TouchMouse ? 1 : 0;
+                case "desktop": return DesktopActive ? 1 : 0;
+                default: return -1;
+            }
+        }
 
         // A few short color flashes (notification)
         internal static void Flash(Controller c, Rgb color, int blinks)
@@ -379,6 +408,7 @@ namespace Glowstick
                 {
                     rescanRequested = false; lastScan = now;
                     try { DoRescan(); } catch (Exception e) { Log.Error("rescan", e); }
+                    try { XboxSource.Ensure(client, XboxSource.Enabled && Pro.Unlocked && GameModeActive && !notLoaded); } catch (Exception e) { Log.Error("Xbox source", e); }
                 }
                 if (now - lastRate >= 1)
                 {
@@ -389,6 +419,8 @@ namespace Glowstick
 
                 KeyValuePair<Controller, HotAction> hk;
                 while (hotkeys.TryDequeue(out hk)) try { DoHotkey(hk.Key, hk.Value); } catch (Exception e) { Log.Error("hotkey", e); }
+                Controller mp;
+                while (mutes.TryDequeue(out mp)) try { if (Pro.Unlocked && SettingsOf(mp.Id).MuteLed == "mic") Mic.Toggle(); } catch (Exception e) { Log.Error("mute", e); }
 
                 Controller[] arr; lock (Lock) arr = Devices.ToArray();
                 List<Preset> ps = Presets;
@@ -479,6 +511,12 @@ namespace Glowstick
         // a new own preset fades in, the virtual pad becomes the other kind when the output changes
         static void Follow(Controller d, PadSettings st)
         {
+            if (d.DualSense)
+            {
+                int mute = MuteLight(st, d);
+                d.HapticRumble = Pro.Unlocked && st.HapticRumble;
+                if (mute != d.MuteLed) { d.MuteLed = mute; d.LR = -1; }   // a new packet goes out at once
+            }
             string own = st.Preset != "" ? st.Preset : null;
             if (own != d.OwnPreset) { d.FadeFrom = d.Current; d.Fade = 0; d.OwnPreset = own; }
             d.PadBrightness = Math.Max(0.1, Math.Min(1.0, st.Brightness));
@@ -488,13 +526,18 @@ namespace Glowstick
         }
 
         // On top of the preset: battery display (PS + ✕), button flashes, notifications; idle dimming and auto-off
+        public const long ChargeIdleMs = 30000;   // the charge display starts after this long untouched on the charger
+
         static Rgb Overlays(Controller d, PadSettings st, Rgb c, long now, double dt)
         {
+            // On the charger and put down: the light bar shows the charge filling up (dim green when full) — never over a game
+            bool charge = st.ChargeShow && d.Charging && d.Battery >= 0 && now - d.LastActiveMs > ChargeIdleMs;
+            if (charge) c = PresetLib.ChargeFill(d.Battery, now / 1000.0);
             if (now < d.BatteryShowUntil) c = PresetLib.BatteryColor(d.Battery, d.Charging, T);
             if (now >= d.NotifyStart && now < d.NotifyUntil && ((now - d.NotifyStart) / 200) % 2 == 0) c = d.NotifyColor;   // a flash can be due later (who is who)
 
             long idle = now - d.LastActiveMs;
-            bool dim = st.IdleDimMin > 0 && idle > st.IdleDimMin * 60000L && now >= d.NotifyUntil;
+            bool dim = st.IdleDimMin > 0 && idle > st.IdleDimMin * 60000L && now >= d.NotifyUntil && !charge;
             d.Dim = dim ? Math.Max(0, d.Dim - dt / 1.5) : Math.Min(1, d.Dim + dt / 0.15);
             if (d.Bluetooth && st.IdleOffMin > 0 && idle > st.IdleOffMin * 60000L && !d.IdleOff)
             {
@@ -542,6 +585,14 @@ namespace Glowstick
                 d.NotifyStart = Ms; d.NotifyUntil = Ms + 800;
                 Settings.Save();
             }
+            if (a == HotAction.DesktopMode)
+            {
+                DesktopMode = !DesktopMode;
+                d.NotifyColor = DesktopMode ? Rgb.Hex(0x00C8FF) : Rgb.Hex(0xFF0000);   // confirmation — always, even with notifications off
+                d.NotifyStart = Ms; d.NotifyUntil = Ms + 800;
+                Settings.Save();
+            }
+            if (a == HotAction.Keyboard) Shell.ToggleOnScreenKeyboard();
             if (a == HotAction.TurnOff && d.Bluetooth)
             {
                 ulong addr = d.BtAddress;

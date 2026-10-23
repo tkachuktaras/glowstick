@@ -44,9 +44,10 @@ Needs Windows 10/11 and a DualShock 4 or DualSense (USB or Bluetooth).
 ### Free
 
 - **Presets:** solid colors, pairs, player colors and three animations, with brightness and speed.
-- **Battery in the tray**, with a warning when it runs low, a "charged" alert and the time to a full charge.
+- **Battery in the tray**, with a warning when it runs low, a "charged" alert and the time to a full charge; on the charger the light bar shows the charge filling up.
 - **Hotkeys (hold PS):** switch presets, change brightness, show the battery, toggle the touchpad mouse, turn a Bluetooth controller off.
-- **Touchpad as mouse:** cursor, scrolling, tap to click, drag; turns itself off in fullscreen games.
+- **Touchpad as mouse:** cursor, scrolling, tap to click with a light click feel, drag, edge swipes; turns itself off in fullscreen games.
+- **Desktop mode:** with no game in front the controller drives Windows — cursor, scrolling, Enter, Esc, switching windows; PS + Share turns it on and off.
 - **DualSense:** light bar, rumble, battery, touchpad, gyro and the player LEDs.
 - **Controller test:** buttons, sticks, triggers, touchpad, gyro, rumble.
 - **Controller health:** warnings for a weak Bluetooth link and a drifting stick; find a controller (it rumbles and flashes) or see who is who.
@@ -61,9 +62,16 @@ One controller in the free version.
 - **All animations and live presets** that react to music, the screen, the battery, the triggers and the sticks.
 - **Your own presets**, shareable as files.
 - **Profiles** for every controller and game, switched automatically: light bar, input mapping, touchpad; import and export as files.
-- **Input mapping** on par with DS4Windows: remap buttons, sticks, triggers, the touchpad and motion to buttons, keys, the mouse, macros or actions; dead zones and curves; gyro aiming; flick stick.
+- **Input mapping** on par with DS4Windows: remap buttons, sticks, triggers, the touchpad and motion to buttons, keys, the mouse, macros or actions; dead zones and curves; gyro aiming and gyro swipes; flick stick; the touchpad as a stick.
+- **Motion server (Cemuhook / DSU)** — gyro for Cemu, Yuzu / Ryujinx, Dolphin and other emulators.
+- **Game telemetry** on the light bar: RPM shift lights in Forza, F1 and Assetto Corsa, health in CS2 and Dota 2.
+- **Steam library** → game profiles in one click; a game is recognized however it starts.
+- **Music presets** can listen to one app only, or to everything but some apps (Windows 11).
+- **Co-pilot:** two controllers play as one.
+- **DualSense:** the Mute button switches the PC microphone and its light shows it (or the battery, touch…); haptic rumble.
+- **PC lighting sync:** OpenRGB and Razer Chroma; Corsair iCUE and Xbox controllers as a source — experimental.
 - **Battery history** and wear warning.
-- **[Local API](docs/local-api.md)** for Stream Deck, Home Assistant, OBS and scripts.
+- **[Local API](docs/local-api.md)** for Stream Deck, Home Assistant, OBS and scripts, with an input overlay for streams.
 
 The free version and Pro share their settings, so moving to Pro keeps everything.
 

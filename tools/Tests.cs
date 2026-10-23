@@ -64,6 +64,12 @@ namespace Glowstick
             PadPieces();
             PadHealthMeters();
             Backups();
+            TouchGesturesTest();
+            DesktopModeTest();
+            ChargeDisplayAndHotkeys();
+            DualSenseMuteAndHaptics();
+            XboxSourceTests();
+            MusicAppFilter();
             ProServerAnswers();
             Sta(UiTests);
             Console.WriteLine(string.Format("{0} passed, {1} failed", passed, failed));
@@ -558,6 +564,244 @@ namespace Glowstick
             Check(sc == 0x4B && ext, "scan code: ← = E0 4B (extended)");
             InputOut.ScanOf(0x64, out sc, out ext);   // numpad 4
             Check(sc == 0x4B && !ext, "scan code: numpad 4 = 4B (not extended)");
+        }
+
+        // Touchpad gestures: edge swipes, edge scroll; the cursor holds still during them; a tap-click pulses the rumble
+        static void TouchGesturesTest()
+        {
+            List<int[]> ev = new List<int[]>();
+            List<string> keys = new List<string>();
+            int pulses = 0;
+            Touchpad t = new Touchpad();
+            t.Output = (dx, dy, data, flags) => ev.Add(new[] { dx, dy, data, flags });
+            t.Target = (dx, dy) => null;
+            t.Gestures.Key = (vk, down) => keys.Add((down ? "+" : "-") + vk);
+            t.Haptic = () => pulses++;
+            TouchConfig c = new TouchConfig { EdgeSwipe = true, EdgeScroll = true, TapClick = true };
+            Func<bool, int, int, Pad> one = (down, x, y) => new Pad { Touch1 = down, T1X = x, T1Y = y, T1Id = 4 };
+            double now = 1000;
+
+            // In from the left edge → browser back, and the cursor doesn't move meanwhile
+            for (int k = 0; k <= 12; k++) P(t, one(true, 20 + k * 50, 470), c, now += 8);
+            P(t, one(false, 620, 470), c, now += 8);
+            Check(keys.Contains("+" + TouchGestures.VK_BROWSER_BACK) && keys.Contains("-" + TouchGestures.VK_BROWSER_BACK), "edge swipe from the left → browser back");
+            Check(!ev.Exists(e => e[3] == Touchpad.MOVE), "the cursor holds still during a swipe");
+            Check(pulses == 1, "a gesture gives a haptic pulse");
+            Check(!ev.Exists(e => (e[3] & Touchpad.LEFTDOWN) != 0), "a swipe is not a tap");
+
+            // From the right edge, the other way → forward; down from the top → show desktop (Win + D)
+            keys.Clear(); ev.Clear(); t.Reset();
+            for (int k = 0; k <= 12; k++) P(t, one(true, 1900 - k * 50, 470), c, now += 8);
+            P(t, one(false, 1300, 470), c, now += 8);
+            Check(keys.Contains("+" + TouchGestures.VK_BROWSER_FORWARD), "edge swipe from the right → forward");
+            keys.Clear();
+            for (int k = 0; k <= 10; k++) P(t, one(true, 960, 10 + k * 30), c, now += 8);
+            P(t, one(false, 960, 310), c, now += 8);
+            Check(keys.Count == 4 && keys[0] == "+" + TouchGestures.VK_LWIN && keys[1] == "+" + TouchGestures.VK_D, "down from the top edge → Win + D");
+
+            // Along the right edge, up and down → wheel, no cursor
+            keys.Clear(); ev.Clear(); t.Reset();
+            for (int k = 0; k <= 12; k++) P(t, one(true, 1890, 800 - k * 40), c, now += 8);
+            P(t, one(false, 1890, 320), c, now += 8);
+            Check(ev.Exists(e => e[3] == Touchpad.WHEEL && e[2] > 0) && !ev.Exists(e => e[3] == Touchpad.MOVE) && keys.Count == 0, "sliding up the right edge scrolls up");
+
+            // A finger that starts in the middle is an ordinary cursor; one at the edge going along it (no edge scroll there) too
+            ev.Clear(); keys.Clear(); t.Reset();
+            for (int k = 0; k <= 12; k++) P(t, one(true, 600 + k * 50, 470), c, now += 8);
+            P(t, one(false, 1200, 470), c, now += 8);
+            Check(ev.Exists(e => e[3] == Touchpad.MOVE) && keys.Count == 0, "a finger in the middle moves the cursor, no gesture");
+            ev.Clear(); t.Reset();
+            for (int k = 0; k <= 12; k++) P(t, one(true, 20, 100 + k * 50), c, now += 8);
+            P(t, one(false, 20, 700), c, now += 8);
+            Check(ev.Exists(e => e[3] == Touchpad.MOVE) && keys.Count == 0, "along the left edge (not inward) → an ordinary cursor after all");
+
+            // Off by default; a tap-click pulses the rumble
+            Check(!new TouchConfig().EdgeSwipe && !new TouchConfig().EdgeScroll && new TouchConfig().HapticClick, "defaults: gestures off, haptic click on");
+            pulses = 0; t.Reset();
+            P(t, one(true, 900, 400), c, now += 200); P(t, one(false, 900, 400), c, now += 60);
+            Check(pulses == 1, "a tap-click gives a haptic pulse");
+            TouchConfig r = TouchConfig.Load(new TouchConfig { EdgeSwipe = true, EdgeScroll = true, MediaSwipe = true, HapticClick = false }.Save());
+            Check(r.EdgeSwipe && r.EdgeScroll && r.MediaSwipe && !r.HapticClick, "gesture settings round trip");
+        }
+
+        // Desktop mode: sticks → cursor / scroll, buttons → keys, L1 / R1 → Alt + Tab, everything let go when it stops
+        static void DesktopModeTest()
+        {
+            List<string> keys = new List<string>();
+            List<int[]> mouse = new List<int[]>();
+            DesktopPad d = new DesktopPad();
+            d.Key = (vk, down) => keys.Add((down ? "+" : "-") + vk);
+            d.Mouse = (dx, dy, data, flags) => mouse.Add(new[] { dx, dy, data, flags });
+            long now = 1000;
+            Func<Btn, byte, byte, Pad> pad = (b, lx, ry) => new Pad { Buttons = b, LX = lx, LY = 128, RX = 128, RY = ry };
+
+            for (int k = 0; k < 20; k++) d.Process(pad(Btn.None, 255, 128), now += 4);
+            Check(mouse.Where(m => m[3] == InputOut.MOVE).Sum(m => m[0]) > 100, "desktop: left stick right → the cursor goes right");
+            mouse.Clear();
+            for (int k = 0; k < 20; k++) d.Process(pad(Btn.None, 140, 128), now += 4);
+            Check(mouse.Count == 0, "desktop: inside the dead zone the cursor stays");
+            for (int k = 0; k < 40; k++) d.Process(pad(Btn.None, 128, 0), now += 4);
+            Check(mouse.Exists(m => m[3] == InputOut.WHEEL && m[2] > 0), "desktop: right stick up → scroll up");
+
+            keys.Clear();
+            d.Process(pad(Btn.Cross, 128, 128), now += 4); d.Process(pad(Btn.None, 128, 128), now += 4);
+            Check(keys.SequenceEqual(new[] { "+13", "-13" }), "desktop: ✕ → Enter");
+            keys.Clear();
+            d.Process(pad(Btn.Cross | Btn.PS, 128, 128), now += 4); d.Process(pad(Btn.None, 128, 128), now += 4);
+            Check(keys.Count == 0, "desktop: with PS held the buttons are hotkeys, not keys");
+
+            keys.Clear();
+            d.Process(pad(Btn.R1, 128, 128), now += 4); d.Process(pad(Btn.None, 128, 128), now += 4);
+            d.Process(pad(Btn.R1, 128, 128), now += 100); d.Process(pad(Btn.None, 128, 128), now += 4);
+            Check(keys.Count(k => k == "+18") == 1 && keys.Count(k => k == "+9") == 2 && !keys.Contains("-18"), "desktop: R1 twice → Alt held, Tab twice");
+            d.Process(pad(Btn.None, 128, 128), now += DesktopPad.AltHoldMs + 10);
+            Check(keys.Last() == "-18", "desktop: Alt let go a moment after the last R1");
+            keys.Clear();
+            d.Process(pad(Btn.L1, 128, 128), now += 4); d.Process(pad(Btn.None, 128, 128), now += 4);
+            d.Process(pad(Btn.Cross, 128, 128), now += 50);
+            Check(keys.Contains("+16") && keys.Contains("-18") && !keys.Contains("+13"), "desktop: L1 goes back (Shift + Tab); ✕ picks the window, no Enter");
+
+            keys.Clear(); mouse.Clear();
+            d.Process(pad(Btn.Square, 128, 128), now += 50);
+            d.Process(new Pad { Buttons = Btn.Square, LX = 128, LY = 128, RX = 128, RY = 128, R2 = 255 }, now += 4);
+            d.Release();
+            Check(keys.Contains("-8") && mouse.Exists(m => m[3] == InputOut.LEFTUP) && !d.Busy, "desktop: stopping lets go of held keys and clicks");
+
+            byte[] raw = new byte[63]; raw[0] = 10; raw[3] = 250; raw[7] = 200; Pad.WriteButtons(raw, Btn.Cross | Btn.R1); raw[34] = 0x80;
+            byte[] rest = DesktopPad.AtRest(raw, new byte[63]);
+            Check(rest[0] == 128 && rest[3] == 128 && rest[7] == 0 && Pad.ReadButtons(rest) == Btn.None && rest[34] == 0x80, "desktop: the game sees the controller at rest");
+            Engine.DesktopMode = true; Fullscreen.App = false;
+            Check(Engine.DesktopActive, "desktop mode on, nothing fullscreen → active");
+            Fullscreen.App = true;
+            Check(!Engine.DesktopActive, "a fullscreen game → desktop mode steps aside");
+            Engine.DesktopMode = false; Fullscreen.App = false;
+        }
+
+        // DualSense: the Mute light and the newer rumble in the output packet, the Mute button from the input report
+        static void DualSenseMuteAndHaptics()
+        {
+            byte[] buf = new byte[78]; int seq = 0; bool released = true;
+            DualSenseWire.Output(buf, false, 48, ref seq, ref released, true, 10, 20, null, null, false, 1, 1, 2, 3, 1, false);
+            Check(buf[1] == 0x03 && (buf[2] & 0x01) != 0 && buf[9] == 1 && (buf[39] & 0x04) == 0, "DualSense USB: Mute light on (ValidFlag1 bit 0, byte 9), classic rumble");
+            buf = new byte[78];
+            DualSenseWire.Output(buf, false, 48, ref seq, ref released, true, 10, 20, null, null, false, 1, 1, 2, 3, -1, true);
+            Check(buf[1] == 0x02 && (buf[39] & 0x04) != 0 && (buf[2] & 0x01) == 0, "DualSense: haptic rumble (ValidFlag2 bit 2), the Mute light left alone");
+            buf = new byte[78];
+            DualSenseWire.Output(buf, true, 78, ref seq, ref released, false, 0, 0, null, null, false, 1, 1, 2, 3, 0, true);
+            Check(buf[3] == 0 && (buf[4] & 0x01) != 0 && buf[11] == 0 && (buf[41] & 0x04) == 0, "DualSense BT: Mute light off; no rumble → no rumble flags");
+            byte[] input = new byte[64]; input[0] = 0x01; input[1 + 9] = 0x04 | 0x01; input[1 + 52] = 0x05;
+            byte[] raw = new byte[63]; int counter = 0, pct; bool chg, mute;
+            DualSenseWire.ToDs4(input, 1, raw, ref counter, out pct, out chg, out mute);
+            Check(mute && (raw[6] & 0x03) == 0x01, "DualSense: the Mute button is read; the DS4 report gets only PS");
+            PadSettings ps = PadSettings.Load(new PadSettings { MuteLed = "battery", HapticRumble = true }.Save());
+            Check(ps.MuteLed == "battery" && ps.HapticRumble && new PadSettings().MuteLed == "mic" && !new PadSettings().HapticRumble, "Mute light / haptic settings round trip; mic by default, classic rumble by default");
+            Check(PadSettings.Load(new Dictionary<string, object> { { "MuteLed", "nonsense" } }).MuteLed == "mic", "an unknown Mute light choice is ignored");
+            bool m = Mic.Muted;   // the real PC: reading the microphone state mustn't throw
+            Check(true, "the PC microphone's mute state reads (" + m + ")");
+        }
+
+        // Music presets listening to some apps: this test plays a tone itself and checks the per-app capture hears it only
+        // when its own exe is listened to (real WASAPI process loopback on this PC)
+        static void MusicAppFilter()
+        {
+            string self = System.Diagnostics.Process.GetCurrentProcess().ProcessName + ".exe";
+            string mode0 = AudioCapture.AppMode; string[] apps0 = AudioCapture.Apps;
+            try
+            {
+                AudioCapture.AppMode = "";
+                Check(!AudioCapture.Filtered && MusicApps.Summary() == Lang.T("Listens to: everything the PC plays"), "music apps: everything by default");
+                AudioCapture.AppMode = "only"; AudioCapture.Apps = new[] { "Spotify.exe", "chrome.exe" };
+                Check(AudioCapture.Filtered && MusicApps.Summary() == Lang.F("Listens to: only {0}", "Spotify, chrome"), "music apps: the summary names the apps");
+                AudioCapture.Apps = new string[0];
+                Check(!AudioCapture.Filtered, "music apps: \"only\" with no apps — still everything");
+                Check(AudioCapture.SoundApps() != null, "music apps: the apps playing sound now — " + string.Join(", ", AudioCapture.SoundApps()));
+                if (!AudioCapture.PerAppSupported || !AudioCapture.HasOutput()) { Check(true, "music apps: per-app capture skipped (Windows older than 11, or no sound output — CI)"); return; }
+                using (System.Media.SoundPlayer tone = new System.Media.SoundPlayer(Tone()))
+                {
+                    tone.PlayLooping();
+                    AudioCapture.AppMode = "only"; AudioCapture.Apps = new[] { self };
+                    double heard = Listen(6000, "only this app");
+                    AudioCapture.Apps = new[] { "no-such-app-glowstick.exe" };
+                    Listen(2500, null);   // the capture follows a change within a second
+                    double other = Listen(1500, "only another app");
+                    // "All but": the other apps playing now are left out, so this test's tone is all there is to hear — then it's left out too
+                    List<string> others = AudioCapture.SoundApps().FindAll(x => !string.Equals(x, self, StringComparison.OrdinalIgnoreCase));
+                    AudioCapture.AppMode = "except"; AudioCapture.Apps = others.ToArray();
+                    Listen(2500, null);
+                    double exceptOthers = Listen(1500, "all but the others");
+                    others.Add(self); AudioCapture.Apps = others.ToArray();
+                    Listen(2500, null);
+                    double exceptAll = Listen(1500, "all but every app");
+                    tone.Stop();
+                    Check(heard > 0.05, "music apps: only this app — its tone is heard (" + heard.ToString("0.000") + ")");
+                    Check(other < 0.01, "music apps: only another app — this one's tone isn't (" + other.ToString("0.000") + ")");
+                    Check(exceptOthers > 0.05 && exceptAll < 0.01, "music apps: all but some — the rest is heard (" + exceptOthers.ToString("0.000") + "), the left-out ones aren't (" + exceptAll.ToString("0.000") + ")");
+                }
+            }
+            finally { AudioCapture.AppMode = mode0; AudioCapture.Apps = apps0; }
+        }
+
+        // The loudest 250–2000 Hz peak over ms
+        static double Listen(int ms, string what)
+        {
+            double max = 0;
+            List<string> trace = new List<string>();
+            for (int t = 0; t < ms; t += 50)
+            {
+                double p = AudioCapture.Peak(250, 2000);
+                max = Math.Max(max, p);
+                if (t % 500 == 0) trace.Add(p.ToString("0.00"));
+                System.Threading.Thread.Sleep(50);
+            }
+            if (what != null) Console.WriteLine("  music apps, " + what + ": " + string.Join(" ", trace));
+            return max;
+        }
+
+        // 1 s of a 440 Hz tone, 48 kHz 16-bit mono WAV
+        static System.IO.MemoryStream Tone()
+        {
+            int rate = 48000, n = rate;
+            System.IO.MemoryStream ms = new System.IO.MemoryStream();
+            System.IO.BinaryWriter w = new System.IO.BinaryWriter(ms);
+            w.Write(System.Text.Encoding.ASCII.GetBytes("RIFF")); w.Write(36 + n * 2); w.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt "));
+            w.Write(16); w.Write((short)1); w.Write((short)1); w.Write(rate); w.Write(rate * 2); w.Write((short)2); w.Write((short)16);
+            w.Write(System.Text.Encoding.ASCII.GetBytes("data")); w.Write(n * 2);
+            for (int k = 0; k < n; k++) w.Write((short)(Math.Sin(2 * Math.PI * 440 * k / rate) * 8000));
+            ms.Position = 0;
+            return ms;
+        }
+
+        // The Xbox source: XInput → the DS4 report, and the real XInput / device enumeration on this PC don't throw
+        static void XboxSourceTests()
+        {
+            byte[] raw = new byte[63];
+            XboxSource.ToDs4(new XboxSource.XPad { Buttons = XboxSource.A | XboxSource.RB | XboxSource.Guide | XboxSource.Up, LT = 200, RT = 10, LX = 32767, LY = 32767, RX = -32768, RY = 0 }, raw);
+            Pad p = Pad.Parse(raw);
+            Check((p.Buttons & (Btn.Cross | Btn.R1 | Btn.PS | Btn.Up | Btn.L2)) == (Btn.Cross | Btn.R1 | Btn.PS | Btn.Up | Btn.L2) && (p.Buttons & Btn.R2) == 0,
+                "Xbox → DS4: A ✕, RB R1, Guide PS, the d-pad, LT pulled → L2 (RT barely — not R2)");
+            Check(p.LX == 255 && p.LY == 0 && p.RX == 0 && Math.Abs(p.RY - 128) <= 1 && p.L2 == 200, "Xbox → DS4: sticks (up stays up), triggers");
+            Check(!p.Touch1 && p.AccelY == 8192, "Xbox → DS4: no touch, lying flat");
+            Check(XboxSource.Axis(0, false) == 128 && XboxSource.Axis(-32768, true) == 255, "XInput axis → byte, Y inverted");
+            bool any = false;
+            for (int i = 0; i < 4; i++) any |= XboxSource.Probe(i);
+            Check(true, "XInput answers on this PC (a controller: " + any + ")");
+            Check(Native.EnumerateInterface(new Guid("EC87F1E3-C13B-4100-B5F7-8B84D54260CB")) != null, "XUSB devices enumerate");
+            Check(Engine.OwnXInputSlots().Count == 0, "no virtual Xbox pads → no slot of ours");
+        }
+
+        static void ChargeDisplayAndHotkeys()
+        {
+            Rgb full = PresetLib.ChargeFill(100, 1.0);
+            Check(full.G > full.R && full.G < 60, "charge display: full → dim green");
+            double peak = 0;
+            for (double t = 0; t < 3; t += 0.05) { Rgb c = PresetLib.ChargeFill(40, t); peak = Math.Max(peak, Math.Max(c.R, Math.Max(c.G, c.B))); }
+            Check(peak > 90 && peak < 110, "charge display: at 40% it fills up to 40% brightness");
+            Check(PadSettings.Load(new PadSettings { ChargeShow = false }.Save()).ChargeShow == false && new PadSettings().ChargeShow, "charge display: on by default, can be turned off");
+            HotkeyMap.Reset();
+            Check(HotkeyMap.Get(HotAction.DesktopMode) == Btn.Share && HotkeyMap.Get(HotAction.Keyboard) == Btn.Triangle, "hotkeys: PS + Share — desktop mode, PS + △ — on-screen keyboard");
+            HotkeyMap.Load(new Dictionary<string, object> { { "TurnOff", "Share" } });
+            Check(HotkeyMap.Get(HotAction.TurnOff) == Btn.Share && HotkeyMap.Get(HotAction.DesktopMode) == Btn.None, "an older file that used Share keeps it; the new action gives way");
+            HotkeyMap.Reset();
         }
 
         // Link quality and stick drift (PadHealth.cs)

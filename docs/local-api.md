@@ -103,6 +103,17 @@ An animated effect, applied live (also not saved as a preset).
 - `speed` is 10–400 (percent, optional, default 100) and is independent of the global `/speed`.
 - Unknown `effect` → `400`. Replies with `/status`. Add `?id=` for one controller.
 
+## Input overlay (OBS)
+
+A page that shows one controller's buttons, sticks, triggers and touchpad live, on a transparent background. In OBS add a
+**Browser** source (600 × 310) with this link — Settings → Local API → **Copy the overlay link** gives it ready.
+
+| Request | What it returns |
+|---|---|
+| `GET /overlay?pad=1&token=…` | the page; `pad` — 1 for the first controller, as the tiles are ordered |
+| `GET /input?pad=1&token=…` | the state once (JSON) |
+| `GET /input/stream?pad=1&token=…` | the state ~60 times a second (Server-Sent Events) — what the page listens to |
+
 ## Example
 
 ```bash
