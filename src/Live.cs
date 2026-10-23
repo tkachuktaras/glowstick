@@ -58,6 +58,15 @@ namespace Glowstick
             double lo, hi;
             if (t != null && t.Band != "") MusicBands.Range(t.Band, t.Low, t.High, out lo, out hi);
             else MusicBands.Range(MusicBand, MusicLow, MusicHigh, out lo, out hi);
+            // All of the sound: the full mix's peak hardly drops between hits (vocals, cymbals, held notes), so each band is
+            // followed on its own and a hit in any of them lights up — the kick, the snare, the hi-hat
+            if (hi <= 0) return Math.Max(Band(30, 150, reaction), Math.Max(Band(250, 2000, reaction), Band(4000, 16000, reaction)));
+            return Band(lo, hi, reaction);
+        }
+
+        // One band's level (lo = hi = 0 — the device's peak meter: the fallback when the capture doesn't work)
+        static double Band(double lo, double hi, double reaction)
+        {
             string key = lo + "-" + hi + "-" + reaction;
             AudioState s;
             if (!audio.TryGetValue(key, out s)) { if (audio.Count > 32) audio.Clear(); s = new AudioState(); audio[key] = s; }   // a slider being dragged makes new ones
