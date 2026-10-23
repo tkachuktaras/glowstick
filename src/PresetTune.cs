@@ -1,6 +1,7 @@
-// A preset's own settings on top of the app-wide ones (Pro): brightness, animation speed and, for music presets, how strongly
-// it reacts and which frequencies it follows. Anything unset (NaN / "") is the app-wide value — the Presets page's
-// sliders. Kept by preset name in settings.json ("PresetTune"); built-in presets can have them too.
+// An own music preset's settings on top of the app-wide ones (Pro): how strongly it reacts and which frequencies it follows
+// (set in the preset editor). Anything unset (NaN / "") is the app-wide value — the Presets page's music sliders.
+// Kept by preset name in settings.json ("PresetTune"). Brightness and speed are not kept per preset any more: the brightness
+// belongs to the controller, the speed to an own preset itself (CustomPreset.Speed) — older files' values are dropped.
 using System;
 using System.Collections.Generic;
 
@@ -8,21 +9,17 @@ namespace Glowstick
 {
     public class PresetTune
     {
-        public double Brightness = double.NaN;   // 0 .. 1
-        public double Speed = double.NaN;        // 0.1 .. 4
         public double Reaction = double.NaN;     // 0.5 .. 3 — Live.MusicReaction
         public string Band = "";                 // "" — app-wide; else one of MusicBands.Ids
         public double Low = 30, High = 150;      // Hz, for the "custom" band
 
-        public bool Empty { get { return double.IsNaN(Brightness) && double.IsNaN(Speed) && double.IsNaN(Reaction) && Band == ""; } }
+        public bool Empty { get { return double.IsNaN(Reaction) && Band == ""; } }
 
         public PresetTune Clone() { return (PresetTune)MemberwiseClone(); }
 
         public Dictionary<string, object> Save()
         {
             Dictionary<string, object> d = new Dictionary<string, object>();
-            if (!double.IsNaN(Brightness)) d["Brightness"] = Brightness;
-            if (!double.IsNaN(Speed)) d["Speed"] = Speed;
             if (!double.IsNaN(Reaction)) d["Reaction"] = Reaction;
             if (Band != "") { d["Band"] = Band; d["Low"] = Low; d["High"] = High; }
             return d;
@@ -36,8 +33,6 @@ namespace Glowstick
             object v;
             try
             {
-                if (d.TryGetValue("Brightness", out v)) t.Brightness = Math.Max(0, Math.Min(1, Convert.ToDouble(v)));
-                if (d.TryGetValue("Speed", out v)) t.Speed = Math.Max(0.1, Math.Min(4, Convert.ToDouble(v)));
                 if (d.TryGetValue("Reaction", out v)) t.Reaction = Math.Max(0.5, Math.Min(3, Convert.ToDouble(v)));
                 if (d.TryGetValue("Band", out v) && v is string && Array.IndexOf(MusicBands.Ids, (string)v) >= 0) t.Band = (string)v;
                 if (d.TryGetValue("Low", out v)) t.Low = Math.Max(20, Math.Min(18000, Convert.ToDouble(v)));

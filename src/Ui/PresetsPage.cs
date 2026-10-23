@@ -19,7 +19,7 @@ namespace Glowstick
         public event Action<string> TileClicked;               // controller id
         public event Action NewRequested, ImportRequested;
         public event Action<Preset> EditRequested, DeleteRequested, ExportRequested;   // the user's own presets (Pro)
-        public event Action<Preset> TuneRequested, CopyRequested;   // any preset's own settings; a copy of a built-in one to edit (Pro)
+        public event Action<Preset> CopyRequested;   // a copy of a built-in preset to edit (Pro)
 
         public readonly TileRow Tiles = new TileRow();
         readonly WrapPanel chips = new WrapPanel { Margin = new Thickness(0, 14, 0, 6) };
@@ -33,7 +33,7 @@ namespace Glowstick
         readonly Grid musicRow = new Grid { Margin = new Thickness(0, 10, 0, 0) };
         readonly ComboBox band = new ComboBox();   // which frequencies music presets follow (app-wide; a preset can have its own)
         static readonly string[] Bands = { "bass", "mid", "high", "all" };
-        readonly TextBlock ownNote = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };   // the chosen preset has its own settings
+        readonly TextBlock ownNote = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };   // the chosen preset has its own music settings
         readonly AnimClock clock = new AnimClock();
         readonly string group = "chips" + Guid.NewGuid().ToString("N");
 
@@ -123,7 +123,7 @@ namespace Glowstick
         }
 
         // The music settings: only with a music preset chosen, and only in Pro (music presets are Pro). The sliders here are
-        // the app-wide values; a preset's own ones (Preset settings) win — the note under them says which.
+        // the app-wide values; an own preset's ones (set in its editor) win — the note under them says which.
         void ShowMusic()
         {
             List<Preset> ps = Engine.Presets;
@@ -134,11 +134,9 @@ namespace Glowstick
             if (t != null)
             {
                 List<string> own = new List<string>();
-                if (!double.IsNaN(t.Brightness)) own.Add(Lang.F("brightness {0}%", (int)Math.Round(t.Brightness * 100)));
-                if (!double.IsNaN(t.Speed)) own.Add(Lang.F("speed {0}%", (int)Math.Round(t.Speed * 100)));
                 if (!double.IsNaN(t.Reaction)) own.Add(Lang.F("music reaction {0}%", (int)Math.Round(t.Reaction * 100)));
                 if (t.Band != "") own.Add(t.Band == "custom" ? Lang.F("{0}–{1} Hz", (int)t.Low, (int)t.High) : MusicBands.Title(t.Band));
-                note = Lang.F("“{0}” has its own settings: {1}. They win over the sliders here; right-click the preset → Preset settings to change them.", cur.Title, string.Join(", ", own));
+                note = Lang.F("“{0}” has its own music settings: {1}. They win over the sliders here; edit the preset to change them.", cur.Title, string.Join(", ", own));
             }
             if (ownNote.Text != note) ownNote.Text = note;
             ownNote.Visibility = note == "" ? Visibility.Collapsed : Visibility.Visible;
@@ -180,7 +178,6 @@ namespace Glowstick
                 card.EditRequested += c => { if (EditRequested != null) EditRequested(c.Preset); };
                 card.DeleteRequested += c => { if (DeleteRequested != null) DeleteRequested(c.Preset); };
                 card.ExportRequested += c => { if (ExportRequested != null) ExportRequested(c.Preset); };
-                card.TuneRequested += c => { if (TuneRequested != null) TuneRequested(c.Preset); };
                 card.CopyRequested += c => { if (CopyRequested != null) CopyRequested(c.Preset); };
                 cards.Add(card);
                 grid.Children.Add(card);

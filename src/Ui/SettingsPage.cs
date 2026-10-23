@@ -21,7 +21,7 @@ namespace Glowstick
 
             // ---------- general ----------
             StackPanel general = Section(Lang.T("General"));
-            ComboBox lang = new ComboBox { Width = 220 };
+            ComboBox lang = new ComboBox { Width = BoxWidth };
             lang.Items.Add(Lang.T("As in Windows"));
             foreach (string[] l in Lang.Languages) lang.Items.Add(l[1]);
             lang.SelectedIndex = Array.FindIndex(Lang.Languages, l => l[0] == Lang.Setting) + 1;
@@ -96,7 +96,19 @@ namespace Glowstick
         // A section of this page (the Pro module adds its own through this too)
         internal StackPanel Section(string title) { return Kit.Card(page, title); }
 
-        internal static FrameworkElement Row(string label, FrameworkElement control) { return Kit.Row(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center }, control, 170); }
+        // A labelled setting: every label in one narrow column, every box the same width (BoxWidth) right after it
+        internal const double BoxWidth = 220;
+        internal static FrameworkElement Row(string label, FrameworkElement control)
+        {
+            Grid g = new Grid();
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+            g.ColumnDefinitions.Add(new ColumnDefinition());
+            g.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 10, 0) });
+            control.HorizontalAlignment = HorizontalAlignment.Left;
+            Grid.SetColumn(control, 1);
+            g.Children.Add(control);
+            return g;
+        }
 
         public void OnTick() { }
     }

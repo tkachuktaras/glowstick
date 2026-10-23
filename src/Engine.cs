@@ -200,13 +200,14 @@ namespace Glowstick
             Settings.Save();
         }
 
-        // A controller's own brightness multiplier (0.1 .. 1.0), on top of the global brightness — Pro
-        public static void SetPadBrightness(string id, double value)
+        // A controller's own brightness multiplier (0.1 .. 1.0), on top of the global brightness — Pro.
+        // save false — a slider being dragged: it saves when let go
+        public static void SetPadBrightness(string id, double value, bool save = true)
         {
             PadSettings s = Editable(id);
             if (s == null) return;
             s.Brightness = Math.Max(0.1, Math.Min(1.0, value));
-            Settings.Save();
+            if (save) Settings.Save();
         }
 
         // A controller's own preset; null or "" — same as everyone
@@ -345,39 +346,51 @@ namespace Glowstick
                     lock (Lock) foreach (Controller d in Devices) d.TickRate();
                 }
                 T += dt * Speed;
-                frame++;
 
                 KeyValuePair<Controller, HotAction> hk;
                 while (hotkeys.TryDequeue(out hk)) try { DoHotkey(hk.Key, hk.Value); } catch (Exception e) { Log.Error("hotkey", e); }
 
                 Controller[] arr; lock (Lock) arr = Devices.ToArray();
-                int n = arr.Length;
                 List<Preset> ps = Presets;
                 Preset global = ps[Math.Max(0, Math.Min(PresetIndex, ps.Count - 1))];
                 long ms = sw.ElapsedMilliseconds, nowMs = Ms;
-                for (int i = 0; i < n; i++)
+                // Each controller's preset — most specific wins: this pad's API override, then its own preset, then a global API
+                // override, then the chosen preset. A controller on a preset of its own plays it as if it were the only one
+                // (0 of 1: every color); the others share the global one and are numbered among themselves (1st, 2nd, …)
+                Preset[] chosen = new Preset[arr.Length];
+                PadSettings[] sts = new PadSettings[arr.Length];
+                bool[] alone = new bool[arr.Length];
+                for (int i = 0; i < arr.Length; i++)
+                {
+                    Controller d = arr[i];
+                    sts[i] = SettingsOf(d.Id);
+                    Follow(d, sts[i]);
+                    string own = d.OwnPreset;
+                    Preset named = own != null ? ps.Find(x => x.Name == own) : null;
+                    Preset pr = d.ApiPreset ?? named;
+                    alone[i] = pr != null;
+                    pr = pr ?? apiGlobal ?? global;
+                    if (pr.Locked) pr = ps.Find(x => !x.Locked) ?? pr;   // e.g. saved by Pro, then Pro was locked
+                    chosen[i] = pr;
+                }
+                int[] slot = new int[arr.Length];
+                int shared = Slots(alone, slot);
+                for (int i = 0; i < arr.Length; i++)
                 {
                     Controller d = arr[i];
                     if (d.Dead) { Remove(d); continue; }
                     Live.Cur = d;
                     Live.Pad = d.CopyLast(lastRaw) ? Pad.Parse(lastRaw) : new Pad { LX = 128, LY = 128, RX = 128, RY = 128 };
-                    PadSettings st = SettingsOf(d.Id);
-                    Follow(d, st);
-                    // most specific wins: this pad's API override, then its own preset, then a global API override, then the chosen preset
-                    string own = d.OwnPreset;
-                    Preset named = own != null ? ps.Find(x => x.Name == own) : null;
-                    Preset pr = d.ApiPreset ?? named ?? apiGlobal ?? global;
-                    if (pr.Locked) pr = ps.Find(x => !x.Locked) ?? pr;   // e.g. saved by Pro, then Pro was locked
-                    PresetTune tune = Pro.Unlocked ? PresetTunes.Get(pr.Name) : null;   // the preset's own brightness / speed / music settings
-                    Live.Tune = tune;
+                    PadSettings st = sts[i];
+                    Preset pr = chosen[i];
+                    Live.Tune = Pro.Unlocked ? PresetTunes.Get(pr.Name) : null;   // an own preset's music settings
                     Rgb c;
-                    try { c = pr.Fn(PresetTime(pr, tune, dt, frame), i, n).Clamp(); } catch { c = new Rgb(0, 0, 0); }
+                    try { c = (slot[i] < 0 ? pr.Fn(T, 0, 1) : pr.Fn(T, slot[i], shared)).Clamp(); } catch { c = new Rgb(0, 0, 0); }
                     d.Fade = Math.Min(1, d.Fade + dt / 0.4);
                     if (d.Fade < 1) c = Rgb.Lerp(d.FadeFrom, c, PresetLib.Smooth(d.Fade));
                     d.Current = c;
                     c = Overlays(d, st, c, nowMs, dt);
-                    double bright = tune != null && !double.IsNaN(tune.Brightness) ? tune.Brightness : Brightness;
-                    Rgb o = c.Mul(bright * d.Dim * d.PadBrightness).Clamp(); d.Out = o;
+                    Rgb o = c.Mul(Brightness * d.Dim * d.PadBrightness).Clamp(); d.Out = o;
                     int r = (int)Math.Round(o.R), g = (int)Math.Round(o.G), b = (int)Math.Round(o.B);
                     long since = ms - d.LastSendMs;
                     bool changed = r != d.LR || g != d.LG || b != d.LB;
@@ -393,6 +406,15 @@ namespace Glowstick
         }
 
         static readonly byte[] lastRaw = new byte[63];
+
+        // Numbers the controllers for their presets: one on a preset of its own gets -1 (it plays as 0 of 1); the others are
+        // numbered 0, 1, … among themselves. Returns how many share the global preset.
+        internal static int Slots(bool[] alone, int[] slot)
+        {
+            int shared = 0;
+            for (int i = 0; i < alone.Length; i++) slot[i] = alone[i] ? -1 : shared++;
+            return shared;
+        }
 
         // The showcase mode's made-up controllers instead of the real ones (never scanned, hidden or given a virtual pad)
         static void StartShowcase()
@@ -411,23 +433,6 @@ namespace Glowstick
                     SortDevices();
                 }
             }
-        }
-
-        // A preset with its own speed runs on its own clock (started from the shared one, so the switch doesn't jump);
-        // every controller on that preset shares it, and it advances once a frame. Light bar thread only.
-        static readonly Dictionary<string, double> ownTime = new Dictionary<string, double>();
-        static readonly Dictionary<string, long> ownFrame = new Dictionary<string, long>();
-        static long frame;
-
-        static double PresetTime(Preset p, PresetTune tune, double dt, long f)
-        {
-            if (tune == null || double.IsNaN(tune.Speed)) { if (ownTime.Count > 0) ownTime.Remove(p.Name); return T; }   // own speed off: back on the shared clock
-            double t;
-            if (!ownTime.TryGetValue(p.Name, out t)) t = T;
-            long last;
-            if (!ownFrame.TryGetValue(p.Name, out last) || last != f) { t += dt * tune.Speed; ownFrame[p.Name] = f; }
-            ownTime[p.Name] = t;
-            return t;
         }
 
         // A controller takes on its profile's light bar settings every frame, so a game or a profile switch applies at once:
@@ -486,15 +491,7 @@ namespace Glowstick
             }
             if (a == HotAction.Brighter || a == HotAction.Dimmer)
             {
-                // A preset with its own brightness: that one changes (the global one wouldn't show)
-                List<Preset> ps = Presets;
-                string own = d.OwnPreset;
-                string name = own ?? ps[Math.Max(0, Math.Min(PresetIndex, ps.Count - 1))].Name;
-                PresetTune tune = Pro.Unlocked ? PresetTunes.Get(name) : null;
-                double cur = tune != null && !double.IsNaN(tune.Brightness) ? tune.Brightness : Brightness;
-                double v = Math.Max(0.1, Math.Min(1, Math.Round(cur * 10 + (a == HotAction.Brighter ? 1 : -1)) / 10));
-                if (tune != null && !double.IsNaN(tune.Brightness)) { PresetTune t = tune.Clone(); t.Brightness = v; PresetTunes.Set(name, t); }
-                else Brightness = v;
+                Brightness = Math.Max(0.1, Math.Min(1, Math.Round(Brightness * 10 + (a == HotAction.Brighter ? 1 : -1)) / 10));
                 Settings.Save();
             }
             if (a == HotAction.ShowBattery) d.BatteryShowUntil = Ms + 3000;

@@ -28,23 +28,16 @@ Needs Windows 10/11 and a DualShock 4 or DualSense (USB or Bluetooth).
 | Presets | Controllers |
 |---|---|
 | <img src="assets/readme/presets.png" alt="Presets page with controller tiles and animated preset cards"> | <img src="assets/readme/controllers.png" alt="Controllers page with names, own presets and battery history"> |
+| **Profiles** | **Game profiles** |
+| <img src="assets/readme/profiles.png" alt="Profiles page: stick dead zones, curves and a live preview"> | <img src="assets/readme/game-profiles.png" alt="Game profiles switched by the running exe"> |
+| **Button rules** | **Macros** |
+| <img src="assets/readme/remap.png" alt="Button rules: remap to buttons, keys, mouse and macros"> | <img src="assets/readme/macros.png" alt="Macros, one being recorded"> |
+| **Gyro aiming** | **Touchpad** |
+| <img src="assets/readme/gyro.png" alt="Gyro aiming settings"> | <img src="assets/readme/touchpad.png" alt="Touchpad as mouse settings"> |
 | **Controller test** | **Settings** |
 | <img src="assets/readme/controller-test.png" alt="Controller test with buttons, sticks, triggers and gyro"> | <img src="assets/readme/settings.png" alt="Settings page"> |
-
-<details>
-<summary>More screenshots</summary>
-
-| Profiles | Button rules |
-|---|---|
-| <img src="assets/readme/profiles.png" alt="Profiles page: stick dead zones, curves and a live preview"> | <img src="assets/readme/remap.png" alt="Button rules: remap to buttons, keys, mouse and macros"> |
-| **Macros** | **Gyro aiming** |
-| <img src="assets/readme/macros.png" alt="Macros, one being recorded"> | <img src="assets/readme/gyro.png" alt="Gyro aiming settings"> |
-| **Touchpad** | **Game profiles** |
-| <img src="assets/readme/touchpad.png" alt="Touchpad as mouse settings"> | <img src="assets/readme/game-profiles.png" alt="Game profiles switched by the running exe"> |
-| **Preset editor** | **Preset settings** |
-| <img src="assets/readme/preset-editor.png" alt="Editing an own preset"> | <img src="assets/readme/preset-settings.png" alt="A preset's own brightness, speed and music reaction"> |
-
-</details>
+| **Preset editor** | |
+| <img src="assets/readme/preset-editor.png" alt="Editing an own preset"> | |
 
 ## Features
 

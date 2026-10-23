@@ -518,6 +518,20 @@
     <!-- Separators inside menus look up this key, not the implicit style -->
     <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator" BasedOn="{StaticResource {x:Type Separator}}"/>
     <!-- Menu items inside context menus: check mark, header, submenu arrow, submenu popup -->
+    <!-- A menu row that holds a control (the brightness slider in a controller's menu): aligned with the items' text, no highlight -->
+    <Style x:Key="MenuSlot" TargetType="MenuItem">
+        <Setter Property="Foreground" Value="{StaticResource Text}"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border Background="Transparent" Padding="30,4,8,4" MinWidth="200">
+                        <ContentPresenter ContentSource="Header" RecognizesAccessKey="False"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     <Style TargetType="MenuItem">
         <Setter Property="Foreground" Value="{StaticResource Text}"/>
         <Setter Property="Template">

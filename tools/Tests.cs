@@ -410,14 +410,23 @@ namespace Glowstick
             AudioCapture.ToMono(raw, 2, 2, 16, false, mono);
             Check(Math.Abs(mono[0] - 0.25) < 1e-6 && Math.Abs(mono[1] + 1) < 1e-6, "16-bit stereo → mono");
 
-            PresetTunes.Set("Fire", new PresetTune { Brightness = 0.4, Band = "custom", Low = 50, High = 120 });
+            PresetTunes.Set("Fire", new PresetTune { Band = "custom", Low = 50, High = 120 });
             PresetTunes.Load(PresetTunes.Save());
             PresetTune t = PresetTunes.Get("Fire");
-            Check(t != null && t.Brightness == 0.4 && double.IsNaN(t.Speed) && t.Band == "custom" && t.Low == 50 && t.High == 120, "a preset's own settings round trip (unset stays unset)");
+            Check(t != null && double.IsNaN(t.Reaction) && t.Band == "custom" && t.Low == 50 && t.High == 120, "a preset's own settings round trip (unset stays unset)");
             PresetTunes.Rename("Fire", "Fire 2");
             Check(PresetTunes.Get("Fire") == null && PresetTunes.Get("Fire 2") != null, "a preset's own settings follow a rename");
             PresetTunes.Set("Fire 2", new PresetTune());
             Check(PresetTunes.Get("Fire 2") == null, "nothing own left → the entry goes");
+            PresetTunes.Load(new Dictionary<string, object> { { "Ice", new Dictionary<string, object> { { "Brightness", 0.4 }, { "Speed", 2.0 } } } });
+            Check(PresetTunes.Get("Ice") == null, "an older file's own brightness / speed are dropped");
+
+            // A controller on a preset of its own plays it alone; the rest share the global preset among themselves
+            int[] slot = new int[3];
+            int shared = Engine.Slots(new[] { true, false, false }, slot);
+            Check(shared == 2 && slot[0] == -1 && slot[1] == 0 && slot[2] == 1, "own preset → alone; the other two are 1st and 2nd of 2");
+            shared = Engine.Slots(new[] { false, true, false, true }, slot = new int[4]);
+            Check(shared == 2 && slot[0] == 0 && slot[2] == 1 && slot[1] == -1 && slot[3] == -1, "two on own presets: each alone, not a pair");
         }
 
         static void UpdateSwap()

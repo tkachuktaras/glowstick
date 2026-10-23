@@ -1,5 +1,5 @@
 // Tray icon (WinForms NotifyIcon — WPF has none; it runs fine on the WPF dispatcher thread):
-// menu, battery icon of the most depleted controller, low-battery alerts, update and other balloons.
+// menu, battery icon of the first controller, low-battery alerts, update and other balloons.
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -108,21 +108,21 @@ namespace Glowstick
             }
         }
 
-        // Tray icon — the charge of the most depleted controller; notifications at 25% and 12% (not while charging)
+        // Tray icon — the charge of the first controller (as the tiles are ordered); notifications at 25% and 12% for every one (not while charging)
         void BatteryTick()
         {
             ControllerInfo[] snap = Engine.Snapshot();
             if (Pro.BatteryTick != null) Pro.BatteryTick(snap);   // Pro: battery history
-            int lowest = -1;
+            int first = -1;
             for (int k = 0; k < snap.Length; k++)
             {
                 ControllerInfo c = snap[k];
                 if (c.Battery < 0) continue;
-                if (lowest < 0 || c.Battery < lowest) lowest = c.Battery;
+                if (first < 0) first = c.Battery;
                 int had; lowWarned.TryGetValue(c.Id, out had);
                 int level = c.Charging ? 0 : c.Battery <= 12 ? 2 : c.Battery <= 25 ? 1 : 0;
                 if (c.Charging || c.Battery >= 50) lowWarned[c.Id] = 0;   // charged — warn again next time
-                else if (level > had)
+                else if (level > had && !Showcase.On)   // the showcase's made-up low charge warns nobody
                 {
                     lowWarned[c.Id] = level;
                     Engine.Flash(c.Id, Rgb.Hex(0xFF0000), 3);
@@ -131,7 +131,7 @@ namespace Glowstick
                 }
             }
 
-            int seg = lowest < 0 ? 0 : BatteryIcon.Segments(lowest);
+            int seg = first < 0 ? 0 : BatteryIcon.Segments(first);
             if (seg != batterySegments)
             {
                 batterySegments = seg;

@@ -57,19 +57,25 @@ namespace Glowstick
                 m.Items.Add(outItem);
             }
 
-            // Per-controller brightness (on top of the global brightness) — Pro
+            // Per-controller brightness (on top of the global brightness) — Pro: a slider right in the menu, applied while
+            // dragged, saved when let go (it goes into the controller's profile, where the Profiles page shows it too)
             if (Pro.Unlocked)
             {
-                MenuItem br = new MenuItem { Header = Lang.T("Brightness") };
-                int cur = (int)Math.Round(info.Brightness * 100);
-                foreach (int pct in new[] { 100, 75, 50, 25 })
+                // One row like the Settings sliders: the label, then the slider to the right edge
+                TextBlock label = new TextBlock { Text = Lang.F("Brightness: {0}%", (int)Math.Round(info.Brightness * 100)), MinWidth = 120, VerticalAlignment = VerticalAlignment.Center };
+                Slider sl = new Slider { Minimum = 10, Maximum = 100, Value = Math.Round(info.Brightness * 100), MinWidth = 140, Margin = new Thickness(12, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center, SmallChange = 5, LargeChange = 10, IsSnapToTickEnabled = true, TickFrequency = 5 };
+                sl.ValueChanged += (s, e) =>
                 {
-                    int p = pct;
-                    MenuItem it = new MenuItem { Header = p + "%", IsChecked = cur == p };
-                    it.Click += (s, e) => IfPresent(id, () => Engine.SetPadBrightness(id, p / 100.0));
-                    br.Items.Add(it);
-                }
-                m.Items.Add(br);
+                    label.Text = Lang.F("Brightness: {0}%", (int)sl.Value);
+                    IfPresent(id, () => Engine.SetPadBrightness(id, sl.Value / 100, false));
+                };
+                sl.PreviewMouseUp += (s, e) => Settings.Save();
+                sl.KeyUp += (s, e) => Settings.Save();
+                DockPanel row = new DockPanel();
+                DockPanel.SetDock(label, Dock.Left);
+                row.Children.Add(label); row.Children.Add(sl);
+                m.Items.Add(new MenuItem { Header = row, StaysOpenOnClick = true, Style = Theme.Style("MenuSlot") });
             }
             else
             {

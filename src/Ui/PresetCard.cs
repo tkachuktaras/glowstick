@@ -16,7 +16,7 @@ namespace Glowstick
         const double Radius = 8;
         public int Index { get; private set; }
         public Preset Preset { get; private set; }
-        public event Action<PresetCard> Picked, EditRequested, DeleteRequested, ExportRequested, TuneRequested, CopyRequested;
+        public event Action<PresetCard> Picked, EditRequested, DeleteRequested, ExportRequested, CopyRequested;
 
         readonly GradientStop[] stops = new GradientStop[Stripes];
         readonly Rectangle glow = new Rectangle { IsHitTestVisible = false };
@@ -69,7 +69,7 @@ namespace Glowstick
             MouseLeave += (s, e) => { hover = false; Paint(); };
             MouseLeftButtonUp += (s, e) => { if (Picked != null) Picked(this); };
             if (p.Locked) return;
-            // Right click: the preset's own settings (any preset) and a copy to edit (built-in) or edit / export / delete (own).
+            // Right click: a copy to edit (built-in) or edit / export / delete (own).
             // Without Pro the items carry a lock and lead to Settings → Glowstick Pro.
             ContextMenu menu = new ContextMenu();
             bool pro = Glowstick.Pro.Unlocked;
@@ -84,13 +84,11 @@ namespace Glowstick
             {
                 MouseLeftButtonDown += (s, e) => { if (e.ClickCount == 2 && EditRequested != null) { EditRequested(this); e.Handled = true; } };
                 item(Lang.T("Edit"), c => { if (EditRequested != null) EditRequested(c); });
-                item(Lang.T("Preset settings…"), c => { if (TuneRequested != null) TuneRequested(c); });
                 item(Lang.T("Export…"), c => { if (ExportRequested != null) ExportRequested(c); });
                 item(Lang.T("Delete"), c => { if (DeleteRequested != null) DeleteRequested(c); });
             }
             else
             {
-                item(Lang.T("Preset settings…"), c => { if (TuneRequested != null) TuneRequested(c); });
                 item(Lang.T("Edit a copy…"), c => { if (CopyRequested != null) CopyRequested(c); });
             }
             ContextMenu = menu;
