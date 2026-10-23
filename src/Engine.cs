@@ -75,14 +75,14 @@ namespace Glowstick
         // Game mode is always on; it works only with administrator rights and both drivers
         static bool GameModeActive { get { return IsAdmin && client != null && HidHide.Installed; } }
         // Game mode works (the UI shows a warning card otherwise); "unavailable" states are visible in Status
-        public static bool GameModeWorking { get { return GameModeActive && !notLoaded; } }
+        public static bool GameModeWorking { get { return Showcase.On || GameModeActive && !notLoaded; } }
 
         public static void Start()
         {
             if (running) return;
             running = true;
             worker = new Thread(Loop); worker.IsBackground = true; worker.Name = "lights"; worker.Start();
-            Fullscreen.Start();
+            if (!Showcase.On) Fullscreen.Start();   // the showcase has no game to notice, nor a game profile to switch
         }
 
         public static void Stop()
@@ -312,8 +312,12 @@ namespace Glowstick
 
         static void Loop()
         {
-            if (IsAdmin && !clientTried) ConnectClient();
-            UpdateStatus();
+            if (Showcase.On) StartShowcase();
+            else
+            {
+                if (IsAdmin && !clientTried) ConnectClient();
+                UpdateStatus();
+            }
 
             Stopwatch sw = Stopwatch.StartNew();
             double last = 0, lastScan = -100, lastRate = 0;
@@ -330,7 +334,7 @@ namespace Glowstick
                     UpdateStatus();
                     lastScan = -100;
                 }
-                if (rescanRequested || now - lastScan > 2)
+                if (!Showcase.On && (rescanRequested || now - lastScan > 2))
                 {
                     rescanRequested = false; lastScan = now;
                     try { DoRescan(); } catch (Exception e) { Log.Error("rescan", e); }
@@ -389,6 +393,25 @@ namespace Glowstick
         }
 
         static readonly byte[] lastRaw = new byte[63];
+
+        // The showcase mode's made-up controllers instead of the real ones (never scanned, hidden or given a virtual pad)
+        static void StartShowcase()
+        {
+            status = Lang.F("Game mode: games see a virtual {0}, the real controller is hidden.", "DualShock 4");
+            foreach (Controller c in Showcase.Controllers())
+            {
+                PadSettings st = SettingsOf(c.Id);
+                if (st.Output == "Xbox") c.OutputKind = "Xbox";
+                c.PadBrightness = st.Brightness; c.PlayerLeds = st.PlayerLeds;
+                if (st.Preset != "") c.OwnPreset = st.Preset;
+                lock (Lock)
+                {
+                    if (!Order.Contains(c.Id)) Order.Add(c.Id);
+                    Devices.Add(c);
+                    SortDevices();
+                }
+            }
+        }
 
         // A preset with its own speed runs on its own clock (started from the shared one, so the switch doesn't jump);
         // every controller on that preset shares it, and it advances once a frame. Light bar thread only.

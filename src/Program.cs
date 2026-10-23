@@ -40,6 +40,8 @@ namespace Glowstick
         {
             bool tray = Array.Exists(args, a => string.Equals(a, "-Tray", StringComparison.OrdinalIgnoreCase));
             bool admin = new WindowsPrincipal(WindowsIdentity.GetCurrent()).IsInRole(WindowsBuiltInRole.Administrator);
+            Showcase.Parse(args);
+            if (Showcase.On) { RunShowcase(); return; }
 
             if (!admin)
             {
@@ -104,6 +106,22 @@ namespace Glowstick
             Application.EnableVisualStyles();   // WinForms is used only for the tray icon and its menu
             UiApp.Run(tray, updated);
             GC.KeepAlive(mutex);
+        }
+
+        // Demo data only (Showcase): no admin rights, no drivers, no single-instance check — it runs next to the real Glowstick
+        // and never touches its controllers, settings or scheduled tasks
+        static void RunShowcase()
+        {
+            Engine.IsAdmin = false;
+            // English numbers too (8.3 h, not 8,3 h), whatever the PC's regional format
+            System.Globalization.CultureInfo en = new System.Globalization.CultureInfo("en-US");
+            Thread.CurrentThread.CurrentCulture = en; System.Globalization.CultureInfo.DefaultThreadCurrentCulture = en;
+            Pro.Startup();
+            Settings.Load();
+            License.ShowcaseKey();
+            Log.Info("showcase " + Updater.Current + (Showcase.ShotsDir != null ? ", shots → " + Showcase.ShotsDir : ""));
+            Application.EnableVisualStyles();
+            UiApp.Run(false, false);
         }
     }
 }

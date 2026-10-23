@@ -71,8 +71,9 @@ namespace Glowstick
         int ds5Pct = -1, ds5Counter; bool ds5Chg;
         readonly Touchpad touch = new Touchpad();
         readonly PsHotkeys hotkeys;
+        bool demo;   // a made-up controller of the showcase mode: no device behind it
 
-        public bool Virtual { get { VirtualPad v = vpad; return v != null && v.Connected; } }
+        public bool Virtual { get { VirtualPad v = vpad; return demo || v != null && v.Connected; } }
 
         // Product IDs of DualSense and DualSense Edge
         public static string[] DualSensePids { get { return DualSenseWire.Pids; } }
@@ -108,6 +109,19 @@ namespace Glowstick
             }
             catch (Exception ex) { Log.Error("open " + e.Path, ex); }
             c.Id = mac != 0 ? mac.ToString("X12") : e.Path;
+            return c;
+        }
+
+        // A made-up controller for the showcase mode (Showcase.Pads): nothing is opened, output goes nowhere,
+        // input comes from Showcase.Report; never started
+        public static Controller Demo(Showcase.DemoPad p)
+        {
+            Controller c = new Controller("showcase:" + p.Id, null, null, 0, p.Bluetooth ? 78 : 0);
+            c.demo = true;
+            c.Id = p.Id; c.DualSense = p.DualSense; c.Bluetooth = p.Bluetooth;
+            c.Battery = p.Battery; c.Charging = p.Charging; c.DrainPerHour = p.Charging ? -1 : p.DrainPerHour;
+            c.ReportRate = p.Rate;
+            c.LastActiveMs = Engine.Ms;
             return c;
         }
 
@@ -289,6 +303,7 @@ namespace Glowstick
 
         public bool CopyLast(byte[] dst)
         {
+            if (demo) { Showcase.Report(this, dst); return true; }
             lock (lastLock) { if (!hasLast) return false; Buffer.BlockCopy(last, 0, dst, 0, 63); return true; }
         }
 
@@ -301,11 +316,12 @@ namespace Glowstick
             if (l == 0 && s == 0) rumbleTest = false;
         }
 
-        public void TickRate() { ReportRate = Interlocked.Exchange(ref reports, 0); }
+        public void TickRate() { ReportRate = demo ? Showcase.Rate(this) : Interlocked.Exchange(ref reports, 0); }
 
         // Light bar color + rumble (+ player LEDs, adaptive triggers on a DualSense) — one output packet
         public bool Send(int r, int g, int b)
         {
+            if (demo) { LR = r; LG = g; LB = b; return true; }
             lock (writeLock)
             {
                 if (hWrite == null || hWrite.IsClosed) return false;
@@ -332,7 +348,7 @@ namespace Glowstick
             VirtualPad v = vpad;
             vpad = null;
             if (v != null) v.Disconnect();
-            lock (writeLock) { hWrite.Dispose(); }
+            lock (writeLock) { if (hWrite != null) hWrite.Dispose(); }
         }
     }
 }

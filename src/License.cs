@@ -25,6 +25,12 @@ namespace Glowstick
         public static bool Owned { get { lock (sync) return key != "" && activationId != "" && (hwid == "" || hwid == Hwid()); } }
         public static string Key { get { lock (sync) return key; } }
 
+        // The showcase mode: a made-up activated key (never checked online — the Pro module's checks don't start there)
+        internal static void ShowcaseKey()
+        {
+            lock (sync) { key = Showcase.Key; activationId = "showcase"; hwid = ""; checkedAt = DateTime.UtcNow; }
+        }
+
         // The activated key and this PC's activation (for the Pro server); false — not activated
         public static bool Current(out string k, out string activation)
         {

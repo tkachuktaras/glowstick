@@ -30,6 +30,7 @@ namespace Glowstick
         readonly Button install = new Button();
         readonly DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
         public Page Current { get; private set; }
+        public FrameworkElement PageView { get { return host.Content as FrameworkElement; } }   // the page shown now
 
         public MainWindow()
         {

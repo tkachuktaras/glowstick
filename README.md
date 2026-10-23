@@ -31,6 +31,21 @@ Needs Windows 10/11 and a DualShock 4 or DualSense (USB or Bluetooth).
 | **Controller test** | **Settings** |
 | <img src="assets/readme/controller-test.png" alt="Controller test with buttons, sticks, triggers and gyro"> | <img src="assets/readme/settings.png" alt="Settings page"> |
 
+<details>
+<summary>More screenshots</summary>
+
+| Profiles | Button rules |
+|---|---|
+| <img src="assets/readme/profiles.png" alt="Profiles page: stick dead zones, curves and a live preview"> | <img src="assets/readme/remap.png" alt="Button rules: remap to buttons, keys, mouse and macros"> |
+| **Macros** | **Gyro aiming** |
+| <img src="assets/readme/macros.png" alt="Macros, one being recorded"> | <img src="assets/readme/gyro.png" alt="Gyro aiming settings"> |
+| **Touchpad** | **Game profiles** |
+| <img src="assets/readme/touchpad.png" alt="Touchpad as mouse settings"> | <img src="assets/readme/game-profiles.png" alt="Game profiles switched by the running exe"> |
+| **Preset editor** | **Preset settings** |
+| <img src="assets/readme/preset-editor.png" alt="Editing an own preset"> | <img src="assets/readme/preset-settings.png" alt="A preset's own brightness, speed and music reaction"> |
+
+</details>
+
 ## Features
 
 ### Free

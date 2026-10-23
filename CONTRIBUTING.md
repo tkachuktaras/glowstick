@@ -11,6 +11,8 @@ powershell -ExecutionPolicy Bypass -File build.ps1        # → dist\Glowstick.e
 powershell -ExecutionPolicy Bypass -File tools\test.ps1   # tests, no controller needed
 ```
 
+`build.ps1 -Screenshots` also re-renders the README screenshots (`assets/readme/`) from demo data — no controller needed.
+
 Needs only Windows 10/11; the first build downloads the C# compiler. Close Glowstick before building.
 
 ## Where things are

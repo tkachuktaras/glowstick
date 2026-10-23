@@ -1,8 +1,9 @@
 ﻿# Builds dist\Glowstick.exe with the C# compiler from .NET Framework 4 (present in every Windows 10/11).
 # Run: powershell -ExecutionPolicy Bypass -File build.ps1
+#      -Screenshots — then render the README screenshots (assets\readme\*.png) from the built exe on demo data (Showcase.cs)
 # The Pro build (repo glowstick_pro) calls this script with its sources and resources added:
 #   -ExtraSources, -ExtraResources (csc /resource: arguments), -Out (the exe path), -NoUpdates (no GitHub update check)
-param([string[]]$ExtraSources = @(), [string[]]$ExtraResources = @(), [string]$Out = '', [switch]$NoUpdates)
+param([string[]]$ExtraSources = @(), [string[]]$ExtraResources = @(), [string]$Out = '', [switch]$NoUpdates, [switch]$Screenshots)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'tools\common.ps1')
 
@@ -48,3 +49,13 @@ if (Test-Path $out) {
     $sources $ExtraSources $buildInfo
 if ($LASTEXITCODE -ne 0) { throw "csc exited with code $LASTEXITCODE" }
 Write-Host "Done: $out (version $(Get-AppVersion), update repo: $(if ($repo) { $repo } else { 'none' }))"
+
+if ($Screenshots) {
+    # The hidden showcase mode: four made-up controllers, Pro unlocked (in the Pro build), nothing real touched; renders off
+    # screen and exits with the number of failed shots. The README shows Pro — build it from glowstick_pro with -Screenshots.
+    $shots = Join-Path $root 'assets\readme'
+    $p = Start-Process $out -ArgumentList '--showcase-shots', "`"$shots`"" -PassThru -Wait
+    $log = Join-Path $env:TEMP 'Glowstick-showcase\log.txt'
+    if ($p.ExitCode -ne 0) { if (Test-Path $log) { Get-Content $log -Tail 30 }; throw "$($p.ExitCode) screenshot(s) failed (log: $log)" }
+    Write-Host "Screenshots: $shots"
+}

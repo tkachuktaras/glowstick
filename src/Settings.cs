@@ -28,14 +28,19 @@ namespace Glowstick
         {
             try
             {
-                string oldFile = Path.Combine(OldDir, "settings.json");
-                if (!File.Exists(FilePath) && File.Exists(oldFile))
+                Dictionary<string, object> s;
+                if (Showcase.On) s = Showcase.Settings();   // demo data: settings.json isn't even read (nor written — Save)
+                else
                 {
-                    Directory.CreateDirectory(Dir);
-                    File.Copy(oldFile, FilePath);
+                    string oldFile = Path.Combine(OldDir, "settings.json");
+                    if (!File.Exists(FilePath) && File.Exists(oldFile))
+                    {
+                        Directory.CreateDirectory(Dir);
+                        File.Copy(oldFile, FilePath);
+                    }
+                    if (!File.Exists(FilePath) && !File.Exists(BackupPath)) { FirstRun = true; Lang.Init(""); return; }
+                    s = Read(FilePath);
                 }
-                if (!File.Exists(FilePath) && !File.Exists(BackupPath)) { FirstRun = true; Lang.Init(""); return; }
-                Dictionary<string, object> s = Read(FilePath);
                 if (s == null)
                 {
                     s = Read(BackupPath);   // the file is damaged (e.g. the PC lost power while writing) — the previous copy
@@ -126,7 +131,7 @@ namespace Glowstick
         // Called both from the window and from the light bar thread (hotkeys)
         public static void Save()
         {
-            if (!loaded) return;
+            if (!loaded || Showcase.On) return;
             lock (saveLock) try
             {
                 Directory.CreateDirectory(Dir);

@@ -36,10 +36,11 @@ namespace Glowstick
             langRow.Children.Add(lang); langRow.Children.Add(restart);
             general.Children.Add(Row(Lang.T("Language:"), langRow));
 
-            CheckBox auto = new CheckBox { Content = Lang.T("Start with Windows (in the tray)"), IsEnabled = Engine.IsAdmin,
-                IsChecked = Engine.IsAdmin && Autostart.Exists(Autostart.LogonTask), Margin = new Thickness(0, 10, 0, 0) };
+            CheckBox auto = new CheckBox { Content = Lang.T("Start with Windows (in the tray)"), IsEnabled = Engine.IsAdmin || Showcase.On,
+                IsChecked = Showcase.On || Engine.IsAdmin && Autostart.Exists(Autostart.LogonTask), Margin = new Thickness(0, 10, 0, 0) };
             auto.Click += (s, e) =>
             {
+                if (Showcase.On) return;   // shown as it looks with admin rights; the real scheduled tasks stay untouched
                 if (auto.IsChecked == true) { if (!Autostart.Create(Autostart.LogonTask, true, "-Tray")) auto.IsChecked = false; }
                 else Autostart.Delete(Autostart.LogonTask);
             };

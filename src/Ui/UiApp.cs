@@ -43,8 +43,9 @@ namespace Glowstick
             int start = Engine.Presets.FindIndex(p => p.Name == Settings.StartPreset);
             Engine.SetPreset(Math.Max(0, start));
             Engine.Start();
-            if (Pro.AppStarted != null) Pro.AppStarted();   // Pro: local API, game profiles
             tray = new Tray();
+            if (Showcase.On) { RunShowcase(); return; }
+            if (Pro.AppStarted != null) Pro.AppStarted();   // Pro: local API, game profiles
 
             // A second launch of the exe signals this event — show the window
             EventWaitHandle show = new EventWaitHandle(false, EventResetMode.AutoReset, Program.ShowEventName);
@@ -71,6 +72,16 @@ namespace Glowstick
             Cleanup();   // whatever ended the dispatcher loop
         }
 
+        // The showcase mode (demo data): no local API, license or update checks, no first-run setup, and no "show the window"
+        // event — that one belongs to the real Glowstick. With --showcase-shots it renders the screenshots and exits.
+        static void RunShowcase()
+        {
+            ShowMain();
+            if (Showcase.ShotsDir != null) ShowcaseShots.Start(main, Showcase.ShotsDir);
+            app.Run();
+            Cleanup();
+        }
+
         public static ImageSource IconSource()
         {
             return Imaging.CreateBitmapSourceFromHIcon(AppIcon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
@@ -83,6 +94,13 @@ namespace Glowstick
             if (main == null)
             {
                 main = new MainWindow();
+                if (Showcase.ShotsDir != null)
+                {
+                    // Rendered, never seen: off screen, not activated, not on the taskbar
+                    main.WindowStartupLocation = WindowStartupLocation.Manual;
+                    main.Left = main.Top = -20000;
+                    main.ShowActivated = false; main.ShowInTaskbar = false;
+                }
                 MainWindow mine = main;
                 main.Closing += (s, e) =>
                 {
@@ -95,7 +113,7 @@ namespace Glowstick
             }
             main.Show();
             if (main.WindowState == WindowState.Minimized) main.WindowState = WindowState.Normal;
-            main.Activate();
+            if (Showcase.ShotsDir == null) main.Activate();
         }
 
         public static void ShowPage(MainWindow.Page page) { ShowMain(); main.Navigate(page); }

@@ -10,7 +10,8 @@ namespace Glowstick
     internal static class Log
     {
         static readonly object lk = new object();
-        public static string FilePath { get { return Path.Combine(Settings.Dir, "log.txt"); } }
+        static string Dir { get { return Showcase.On ? Showcase.LogDir : Settings.Dir; } }   // the showcase never writes into the real log
+        public static string FilePath { get { return Path.Combine(Dir, "log.txt"); } }
 
         public static void Info(string msg) { Write(msg); }
 
@@ -25,12 +26,12 @@ namespace Glowstick
             {
                 try
                 {
-                    Directory.CreateDirectory(Settings.Dir);
+                    Directory.CreateDirectory(Dir);
                     string path = FilePath;
                     FileInfo fi = new FileInfo(path);
                     if (fi.Exists && fi.Length > 1024 * 1024)
                     {
-                        string old = Path.Combine(Settings.Dir, "log.old.txt");
+                        string old = Path.Combine(Dir, "log.old.txt");
                         if (File.Exists(old)) File.Delete(old);
                         File.Move(path, old);
                     }
