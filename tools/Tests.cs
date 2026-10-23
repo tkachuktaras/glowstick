@@ -700,7 +700,8 @@ namespace Glowstick
             Check(true, "the PC microphone's mute state reads (" + m + ")");
         }
 
-        // Music presets listening to some apps: this test plays a tone itself and checks the per-app capture hears it only
+        // Music presets listening to some apps: this test plays a tone itself (at −84 dB — nobody hears it, the capture does:
+        // silence there is exactly 0) and checks the per-app capture hears it only
         // when its own exe is listened to (real WASAPI process loopback on this PC)
         static void MusicAppFilter()
         {
@@ -733,9 +734,9 @@ namespace Glowstick
                     Listen(2500, null);
                     double exceptAll = Listen(1500, "all but every app");
                     tone.Stop();
-                    Check(heard > 0.05, "music apps: only this app — its tone is heard (" + heard.ToString("0.000") + ")");
-                    Check(other < 0.01, "music apps: only another app — this one's tone isn't (" + other.ToString("0.000") + ")");
-                    Check(exceptOthers > 0.05 && exceptAll < 0.01, "music apps: all but some — the rest is heard (" + exceptOthers.ToString("0.000") + "), the left-out ones aren't (" + exceptAll.ToString("0.000") + ")");
+                    Check(heard > 1e-5, "music apps: only this app — its tone is heard (" + heard.ToString("0.0e0") + ")");
+                    Check(other < 1e-6, "music apps: only another app — this one's tone isn't (" + other.ToString("0.0e0") + ")");
+                    Check(exceptOthers > 1e-5 && exceptAll < 1e-6, "music apps: all but some — the rest is heard (" + exceptOthers.ToString("0.0e0") + "), the left-out ones aren't (" + exceptAll.ToString("0.0e0") + ")");
                 }
             }
             finally { AudioCapture.AppMode = mode0; AudioCapture.Apps = apps0; }
@@ -750,14 +751,14 @@ namespace Glowstick
             {
                 double p = AudioCapture.Peak(250, 2000);
                 max = Math.Max(max, p);
-                if (t % 500 == 0) trace.Add(p.ToString("0.00"));
+                if (t % 500 == 0) trace.Add(p.ToString("0.0e0"));
                 System.Threading.Thread.Sleep(50);
             }
             if (what != null) Console.WriteLine("  music apps, " + what + ": " + string.Join(" ", trace));
             return max;
         }
 
-        // 1 s of a 440 Hz tone, 48 kHz 16-bit mono WAV
+        // 1 s of a 440 Hz tone, 48 kHz 16-bit mono WAV, amplitude 2 of 32768 (−84 dB: inaudible)
         static System.IO.MemoryStream Tone()
         {
             int rate = 48000, n = rate;
@@ -766,7 +767,7 @@ namespace Glowstick
             w.Write(System.Text.Encoding.ASCII.GetBytes("RIFF")); w.Write(36 + n * 2); w.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt "));
             w.Write(16); w.Write((short)1); w.Write((short)1); w.Write(rate); w.Write(rate * 2); w.Write((short)2); w.Write((short)16);
             w.Write(System.Text.Encoding.ASCII.GetBytes("data")); w.Write(n * 2);
-            for (int k = 0; k < n; k++) w.Write((short)(Math.Sin(2 * Math.PI * 440 * k / rate) * 8000));
+            for (int k = 0; k < n; k++) w.Write((short)Math.Round(Math.Sin(2 * Math.PI * 440 * k / rate) * 2));
             ms.Position = 0;
             return ms;
         }
