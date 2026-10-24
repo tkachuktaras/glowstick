@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Web.Script.Serialization;
 
@@ -36,7 +37,29 @@ namespace Glowstick
             Version ver;
             if (!(v is string) || !System.Version.TryParse((string)v, out ver) || !(s is string) || ((string)s).Length != 64) return null;
             if (current != null && Updater.Newer(ver, current) == false) return null;
-            return new UpdateInfo { Version = (string)v, Sha256 = ((string)s).ToLowerInvariant(), FromProServer = true };
+            string sha = ((string)s).ToLowerInvariant(), sig;
+            object sg;
+            sig = d.TryGetValue("signature", out sg) ? sg as string : null;
+            // The release is signed by the key only the build server has: a server (or its storage) that was broken into can't
+            // hand out another exe — without a matching signature there is no update
+            if (!VerifyManifest((string)v, sha, sig)) { Log.Info("update refused: the Pro server's release isn't signed by Glowstick"); return null; }
+            return new UpdateInfo { Version = (string)v, Sha256 = sha, FromProServer = true };
+        }
+
+        // The public half of the key that signs releases (ECDSA P-256, tools\manifest-key.ps1 in the Pro repo); tests put their own here
+        internal static string ManifestKey = "RUNTMSAAAABh13UhnOY0VcjRKu6JaLLY3uEnEUjjncNvnvOsdaOJIZOzjdMyVRUS+J8UBjE/jDL2AGwYJhgMphVUW+KRZyqa";
+
+        // The signature (base64, r‖s) over "glowstick-pro\n<version>\n<sha256>"
+        internal static bool VerifyManifest(string version, string sha256, string signature)
+        {
+            if (string.IsNullOrEmpty(signature)) return false;
+            try
+            {
+                using (CngKey k = CngKey.Import(Convert.FromBase64String(ManifestKey), CngKeyBlobFormat.EccPublicBlob))
+                using (ECDsaCng ec = new ECDsaCng(k) { HashAlgorithm = CngAlgorithm.Sha256 })
+                    return ec.VerifyData(Encoding.UTF8.GetBytes("glowstick-pro\n" + version + "\n" + sha256), Convert.FromBase64String(signature));
+            }
+            catch { return false; }
         }
 
         // Saves that Pro version's exe to file (the caller checks its SHA-256)

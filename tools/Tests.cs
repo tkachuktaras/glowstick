@@ -487,14 +487,38 @@ namespace Glowstick
         // ---------- Pro server answers ----------
         static void ProServerAnswers()
         {
-            string sha = new string('a', 64);
+            string sha = new string('a', 64), realKey = ProServer.ManifestKey;
             Version cur = new Version(1, 0, 0, 0);
-            UpdateInfo u = ProServer.Parse("{\"version\":\"1.2.0\",\"sha256\":\"" + sha.ToUpperInvariant() + "\"}", cur);
-            Check(u != null && u.Version == "1.2.0" && u.Sha256 == sha && u.FromProServer && u.PageUrl == null, "newer Pro → update with its hash");
-            Check(ProServer.Parse("{\"version\":\"1.0.0\",\"sha256\":\"" + sha + "\"}", cur) == null, "same version → nothing");
-            Check(ProServer.Parse("{\"version\":\"1.0.0\",\"sha256\":\"" + sha + "\"}", null) != null, "free → Pro: any version is offered");
-            Check(ProServer.Parse("{\"version\":\"1.2.0\",\"sha256\":\"short\"}", cur) == null, "a bad hash → nothing");
-            Check(ProServer.Parse("{\"version\":\"x\",\"sha256\":\"" + sha + "\"}", cur) == null, "a bad version → nothing");
+            // A key pair of the test's own, standing in for the build server's
+            System.Security.Cryptography.CngKeyCreationParameters kp = new System.Security.Cryptography.CngKeyCreationParameters();
+            kp.ExportPolicy = System.Security.Cryptography.CngExportPolicies.AllowPlaintextExport;
+            using (System.Security.Cryptography.CngKey pair = System.Security.Cryptography.CngKey.Create(System.Security.Cryptography.CngAlgorithm.ECDsaP256, null, kp))
+            using (System.Security.Cryptography.ECDsaCng signer = new System.Security.Cryptography.ECDsaCng(pair) { HashAlgorithm = System.Security.Cryptography.CngAlgorithm.Sha256 })
+            {
+                try
+                {
+                    ProServer.ManifestKey = Convert.ToBase64String(pair.Export(System.Security.Cryptography.CngKeyBlobFormat.EccPublicBlob));
+                    Func<string, string, string> sign = (v, h) => Convert.ToBase64String(signer.SignData(System.Text.Encoding.UTF8.GetBytes("glowstick-pro\n" + v + "\n" + h)));
+                    Func<string, string, string> manifest = (v, h) => "{\"version\":\"" + v + "\",\"sha256\":\"" + h + "\",\"signature\":\"" + sign(v, h.ToLowerInvariant()) + "\"}";
+                    UpdateInfo u = ProServer.Parse(manifest("1.2.0", sha.ToUpperInvariant()), cur);
+                    Check(u != null && u.Version == "1.2.0" && u.Sha256 == sha && u.FromProServer && u.PageUrl == null, "newer Pro → update with its hash");
+                    Check(ProServer.Parse(manifest("1.0.0", sha), cur) == null, "same version → nothing");
+                    Check(ProServer.Parse(manifest("1.0.0", sha), null) != null, "free → Pro: any version is offered");
+                    Check(ProServer.Parse(manifest("1.2.0", "short"), cur) == null, "a bad hash → nothing");
+                    Check(ProServer.Parse(manifest("x", sha), cur) == null, "a bad version → nothing");
+
+                    // The signature is what makes a release real
+                    string good = manifest("1.2.0", sha);
+                    Check(ProServer.Parse(good.Replace("\"sha256\":\"" + sha, "\"sha256\":\"" + new string('b', 64)), cur) == null, "another exe's hash under the same signature → refused");
+                    Check(ProServer.Parse(good.Replace("1.2.0", "1.9.0"), cur) == null, "another version under the same signature → refused");
+                    Check(ProServer.Parse("{\"version\":\"1.2.0\",\"sha256\":\"" + sha + "\"}", cur) == null, "no signature → refused");
+                    Check(ProServer.Parse("{\"version\":\"1.2.0\",\"sha256\":\"" + sha + "\",\"signature\":\"\"}", cur) == null, "an empty signature → refused");
+                    Check(ProServer.Parse("{\"version\":\"1.2.0\",\"sha256\":\"" + sha + "\",\"signature\":\"not base64!\"}", cur) == null, "garbage as a signature → refused");
+                    ProServer.ManifestKey = realKey;
+                    Check(ProServer.Parse(good, cur) == null, "a signature made with another key → refused");
+                }
+                finally { ProServer.ManifestKey = realKey; }
+            }
         }
 
         // ---------- PS hotkeys ----------

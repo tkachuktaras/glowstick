@@ -49,7 +49,7 @@ namespace Glowstick
             string hw = Hwid();
             KeyValuePair<int, string> r = Post("/v1/license/activate", Json(new Dictionary<string, object>
             {
-                { "key", newKey }, { "label", Environment.MachineName }, { "hwid", hw }
+                { "key", newKey }, { "hwid", hw }
             }));
             if (r.Key == 0 || r.Key >= 500 || r.Key == 429) return LicenseResult.Offline;
             if (r.Key == 403) return LicenseResult.LimitReached;   // also refunded — the message says what to check
