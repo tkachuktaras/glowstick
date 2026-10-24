@@ -44,6 +44,7 @@ namespace Glowstick
         public double Dim = 1, StickHue = 0.6;
         public double PadBrightness = 1.0;     // per-controller brightness multiplier on top of the global one (Pro)
         public bool IdleOff;
+        public bool WasGameLit;                // the game's light bar was shown on the last frame (Engine)
         public volatile bool PlayerLeds = true;   // DualSense: the controller's number on the player LEDs (from its profile)
         public volatile int MuteLed = -1;          // DualSense: the Mute light (-1 left alone, 0 off, 1 on) — Engine sets it from the profile
         public volatile bool HapticRumble;         // DualSense: the newer, sharper rumble emulation (from the profile)
@@ -166,7 +167,7 @@ namespace Glowstick
             if (hRead.IsInvalid) { hRead.Dispose(); hRead = null; return false; }
             Native.HidD_SetNumInputBuffers(hRead, 2);   // don't pile up old reports if we ever fall behind
 
-            if (client != null) vpad = new VirtualPad(client, OutputKind, SetRumble, Id);
+            if (client != null) vpad = new VirtualPad(client, OutputKind, SetRumble, Id, SetGameLight);
 
             alive = true;
             reader = new Thread(ReadLoop);
@@ -194,6 +195,16 @@ namespace Glowstick
             if (v == null || hide == VirtualHidden) return;
             VirtualHidden = hide;
             lock (writeLock) { if (hide) v.Disconnect(); else v.Switch(OutputKind); }
+        }
+
+        // The light bar color the game sets (health, police chase, team color); black — the game sets nothing. Packed 0xRRGGBB, -1 — none.
+        public volatile int GameLight = -1;
+        public long GameLightMs;
+        public const long GameLightHoldMs = 60000;   // a game that stops sending its light bar is taken to have quit
+        void SetGameLight(byte r, byte g, byte b)
+        {
+            GameLight = r + g + b == 0 ? -1 : (r << 16) | (g << 8) | b;
+            GameLightMs = Engine.Ms;
         }
 
         // Rumble from the game (through the virtual pad)

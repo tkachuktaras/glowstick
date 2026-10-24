@@ -12,14 +12,15 @@ namespace Glowstick
     {
         readonly ViGEmClient client;
         readonly Action<byte, byte> rumble;   // (large, small)
+        readonly Action<byte, byte, byte> light;   // the light bar color the game sets (DualShock 4 output only); may be null
         readonly string id;                   // for the log
         volatile IDualShock4Controller ds4;
         volatile IXbox360Controller x360;
         bool submitFailed;
 
-        public VirtualPad(ViGEmClient client, string kind, Action<byte, byte> rumble, string id)
+        public VirtualPad(ViGEmClient client, string kind, Action<byte, byte> rumble, string id, Action<byte, byte, byte> light = null)
         {
-            this.client = client; this.rumble = rumble; this.id = id;
+            this.client = client; this.rumble = rumble; this.id = id; this.light = light;
             Connect(kind);
         }
 
@@ -70,7 +71,11 @@ namespace Glowstick
         // Change what games see, live (recreates the virtual pad)
         public void Switch(string kind) { Disconnect(); Connect(kind); }
 
-        void OnFeedback(object sender, DualShock4FeedbackReceivedEventArgs e) { rumble(e.LargeMotor, e.SmallMotor); }
+        void OnFeedback(object sender, DualShock4FeedbackReceivedEventArgs e)
+        {
+            rumble(e.LargeMotor, e.SmallMotor);
+            if (light != null) light(e.LightbarColor.Red, e.LightbarColor.Green, e.LightbarColor.Blue);
+        }
         void OnX360Feedback(object sender, Xbox360FeedbackReceivedEventArgs e) { rumble(e.LargeMotor, e.SmallMotor); }
 
         // One DS4-layout report to the game (read thread)

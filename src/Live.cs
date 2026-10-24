@@ -39,7 +39,7 @@ namespace Glowstick
 
         static IAudioMeterInformation meter;
         static double meterAt = -10;
-        static readonly Dictionary<string, AudioState> audio = new Dictionary<string, AudioState>();   // light bar thread only
+        static readonly List<AudioState> audio = new List<AudioState>();   // light bar thread only; one per band and reaction asked for
 
         // App-wide music settings (Pro, settings.json "MusicReaction", "MusicBand", "MusicLow/High"); a preset can have its own (PresetTune)
         public static double MusicReaction = 1.0;     // 0.5 — soft, 1 — normal, up to 3 — only the hits light up
@@ -66,9 +66,15 @@ namespace Glowstick
         // One band's level (lo = hi = 0 — the device's peak meter: the fallback when the capture doesn't work)
         static double Band(double lo, double hi, double reaction)
         {
-            string key = lo + "-" + hi + "-" + reaction;
-            AudioState s;
-            if (!audio.TryGetValue(key, out s)) { if (audio.Count > 32) audio.Clear(); s = new AudioState(); audio[key] = s; }   // a slider being dragged makes new ones
+            // Asked for every frame by every controller: a plain scan over a few entries, no key strings built
+            AudioState s = null;
+            for (int k = 0; k < audio.Count && s == null; k++) if (audio[k].Lo == lo && audio[k].Hi == hi && audio[k].Reaction == reaction) s = audio[k];
+            if (s == null)
+            {
+                if (audio.Count > 32) audio.Clear();   // a slider being dragged makes new ones
+                s = new AudioState { Lo = lo, Hi = hi, Reaction = reaction };
+                audio.Add(s);
+            }
             double now = clock.Elapsed.TotalSeconds;
             if (now - s.At < 0.008) return s.Level;
             double dt = Math.Min(0.1, now - s.At); s.At = now;
@@ -83,7 +89,7 @@ namespace Glowstick
             return AudioStep(s, peak, dt, reaction);
         }
 
-        internal sealed class AudioState { public double Level, Avg, Max = 0.1, At; }
+        internal sealed class AudioState { public double Level, Avg, Max = 0.1, At, Lo, Hi, Reaction; }
 
         // Music is mostly loud all the time (mastering squeezes it), so the peak against the loudest recent moment hardly moves.
         // What the eye follows is how far this moment stands out above the song's running loudness — beats and accents:
@@ -187,9 +193,9 @@ namespace Glowstick
                         r += pr * w; g += pg * w; bl += pb * w; wsum += w;
                     }
                     Rgb avg = new Rgb(r / wsum, g / wsum, bl / wsum);
-                    smooth = Rgb.Lerp(smooth, Vivid(avg), 0.35);
+                    smooth = Rgb.Lerp(smooth, Vivid(avg), 0.45);
                     lock (screenLock) screen = smooth;
-                    Thread.Sleep(50);
+                    Thread.Sleep(80);   // ~12 captures a second: the halftone stretch of a big screen is the costly part
                 }
             }
             catch { lock (screenLock) screenThread = null; }

@@ -58,6 +58,7 @@ namespace Glowstick
             };
             general.Children.Add(auto);
 
+            Kit.Toggle(general, Lang.T("Show the game's own light bar (health, chases, team colors) when it sets one"), Engine.GameLight, v => Engine.GameLight = v);
             CheckBox upd = Kit.Toggle(general, Lang.T("Check for updates at every start and once a day (GitHub Releases; nothing is downloaded by itself)"), Updater.Enabled, v => Updater.Enabled = v);
             upd.IsEnabled = Updater.Available;
             WrapPanel buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };

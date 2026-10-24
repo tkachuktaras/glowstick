@@ -57,6 +57,7 @@ namespace Glowstick
             FirstRunWhen();
             DragOrder();
             Hotkeys();
+            GameLightAndSteam();
             TouchMouse();
             MusicLevel();
             AudioBands();
@@ -954,6 +955,34 @@ namespace Glowstick
         }
 
         static void P(Touchpad t, Pad p, TouchConfig c, double now) { t.Process(ref p, c, now); }
+
+        // The game's light bar beats the preset until it sets black or goes quiet; Steam's PlayStation-support setting is found in a config
+        static void GameLightAndSteam()
+        {
+            Controller d = (Controller)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(Controller));
+            d.GameLight = -1;   // (no constructor ran)
+            Check(Engine.GameLightOf(d, 1000) == -1, "game light: nothing set — the preset");
+            d.GameLight = 0x112233; d.GameLightMs = 1000;
+            Check(Engine.GameLightOf(d, 2000) == 0x112233, "game light: the game's color is shown");
+            Check(Engine.GameLightOf(d, 1000 + Controller.GameLightHoldMs + 1) == -1, "game light: a quiet game — back to the preset");
+            Engine.GameLight = false;
+            Check(Engine.GameLightOf(d, 2000) == -1, "game light: switched off in Settings");
+            Engine.GameLight = true;
+
+            string dir = Path.Combine(Path.GetTempPath(), "glowstick-steam-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(dir);
+            try
+            {
+                string on = Path.Combine(dir, "on.vdf"), off = Path.Combine(dir, "off.vdf"), none = Path.Combine(dir, "none.vdf");
+                File.WriteAllText(on, "\"InstallConfigStore\"\n{\n\t\"SteamController_PS4Support\"\t\t\"1\"\n}\n");
+                File.WriteAllText(off, "\"X\"\n{\n\t\"PlayStationSupport\"\t\t\"0\"\n}\n");
+                File.WriteAllText(none, "\"X\"\n{\n\t\"Language\"\t\t\"english\"\n}\n");
+                Check(SteamInput.PlayStationSupport(new[] { none, on }) == true, "steam input: PlayStation support on");
+                Check(SteamInput.PlayStationSupport(new[] { off, none }) == false, "steam input: PlayStation support off");
+                Check(SteamInput.PlayStationSupport(new[] { none, Path.Combine(dir, "missing.vdf") }) == null, "steam input: no such setting");
+            }
+            finally { try { Directory.Delete(dir, true); } catch { } }
+        }
 
         static void Hotkeys()
         {

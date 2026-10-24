@@ -102,7 +102,8 @@ namespace Glowstick
             lock (gate)
             {
                 lastAsk = now;
-                BandFilter b = bands.Find(x => x.Low == low && x.High == high);
+                BandFilter b = null;
+                for (int k = 0; k < bands.Count && b == null; k++) if (bands[k].Low == low && bands[k].High == high) b = bands[k];   // (no closure: asked every frame)
                 if (b == null) { b = new BandFilter(low, high); bands.Add(b); }
                 b.LastAsk = now;
                 bool failed = now - failedAt < 30000;
@@ -450,10 +451,13 @@ namespace Glowstick
             return true;
         }
 
+        static readonly List<BandFilter> drainFilters = new List<BandFilter>();
+
         // Everything captured since the last call → this stream's filter of every asked band
         static void Drain(Source s, BandFilter[] asked)
         {
-            List<BandFilter> fs = new List<BandFilter>(asked.Length);
+            List<BandFilter> fs = drainFilters;   // only the capture thread gets here
+            fs.Clear();
             lock (gate)
             {
                 foreach (BandFilter a in asked)

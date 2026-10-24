@@ -8,7 +8,6 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'tools\common.ps1')
 
 $ico = Join-Path $root 'assets\app.ico'
-if (-not (Test-Path $ico)) { & (Join-Path $root 'tools\make-icon.ps1') -Out $ico }
 
 # Official driver installers — embedded in the exe (not stored in git; downloaded here and checked by SHA-256)
 $redist = Join-Path $root 'redist'

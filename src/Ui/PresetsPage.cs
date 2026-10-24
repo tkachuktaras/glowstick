@@ -40,7 +40,7 @@ namespace Glowstick
 
         List<Preset> shownList;   // the Engine.Presets list the page was built from (replaced as a whole on changes)
         string category;
-        int shownIndex = -1;
+        int shownIndex = -1, frame;
 
         public PresetsPage()
         {
@@ -286,7 +286,7 @@ namespace Glowstick
             SyncSelection();
             Tiles.Update(snap);
             double t = clock.Now(Engine.Speed);
-            foreach (PresetCard c in cards) c.Animate(t);
+            if ((frame++ & 1) == 0) foreach (PresetCard c in cards) c.Animate(t);   // the blurred glows change slowly: every other tick (12 fps) is enough
         }
     }
 }

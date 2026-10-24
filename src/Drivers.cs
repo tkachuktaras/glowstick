@@ -78,6 +78,10 @@ namespace Glowstick
                         if (s == null) return Lang.F("the {0} installer is not embedded in this exe", p.Name);
                         using (FileStream fs = File.Create(file)) s.CopyTo(fs);
                     }
+                    // Held open (readable, not writable by others) from the signature check until the installer runs: what was
+                    // checked in %TEMP% can't be swapped for something else before it starts, this app being an administrator
+                    using (new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
                     if (!SignedByNefarius(file)) return Lang.F("the {0} installer signature doesn't match", p.Name);
 
                     // Silent: no installer windows — the app's own button shows the progress (UAC was already accepted on start)
@@ -88,6 +92,7 @@ namespace Glowstick
                         proc.WaitForExit();
                         if (proc.ExitCode == 3010 || proc.ExitCode == 1641) rebootNeeded = true;
                         else if (proc.ExitCode != 0) return Lang.F("{0}: the installer exited with code {1}", p.Name, proc.ExitCode);
+                    }
                     }
                 }
                 return null;
@@ -148,13 +153,15 @@ namespace Glowstick
             return codes;
         }
 
-        // The signature is valid (as Windows itself checks it, timestamp included) and issued to Nefarius
-        static bool SignedByNefarius(string file)
+        static bool SignedByNefarius(string file) { return SignedBy(file, "Nefarius Software Solutions"); }
+
+        // The signature is valid (as Windows itself checks it, timestamp included) and issued to a subject containing `who`
+        internal static bool SignedBy(string file, string who)
         {
             try
             {
                 X509Certificate cert = X509Certificate.CreateFromSignedFile(file);
-                if (!cert.Subject.Contains("Nefarius Software Solutions")) return false;
+                if (cert.Subject.IndexOf(who, StringComparison.OrdinalIgnoreCase) < 0) return false;
             }
             catch { return false; }
 

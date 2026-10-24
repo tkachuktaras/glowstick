@@ -52,6 +52,7 @@ namespace Glowstick
         const int KEYEVENTF_EXTENDEDKEY = 0x1, KEYEVENTF_KEYUP = 0x2, KEYEVENTF_SCANCODE = 0x8;
         const uint MAPVK_VK_TO_VSC_EX = 4;
         static readonly int Size = Marshal.SizeOf(typeof(INPUT));
+        [ThreadStatic] static INPUT[] one;   // the one-event array SendInput takes — per thread, so a touchpad move allocates nothing
 
         // Scan code and flags for a virtual key: (scan, extended); scan 0 — the key has none (sent by virtual key)
         internal static void ScanOf(int vk, out ushort scan, out bool extended)
@@ -80,7 +81,8 @@ namespace Glowstick
             }
             ushort scan; bool ext;
             ScanOf(code, out scan, out ext);
-            INPUT[] i = new INPUT[1];
+            INPUT[] i = one ?? (one = new INPUT[1]);
+            i[0] = new INPUT();
             i[0].type = 1;
             i[0].u.ki.wVk = (ushort)code;
             i[0].u.ki.wScan = scan;
@@ -90,7 +92,8 @@ namespace Glowstick
 
         static void SendMouse(int dx, int dy, int data, int flags)
         {
-            INPUT[] i = new INPUT[1];
+            INPUT[] i = one ?? (one = new INPUT[1]);
+            i[0] = new INPUT();
             i[0].type = 0;
             i[0].u.mi.dx = dx; i[0].u.mi.dy = dy; i[0].u.mi.mouseData = data; i[0].u.mi.dwFlags = flags;
             SendInput(1, i, Size);

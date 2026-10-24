@@ -254,9 +254,23 @@ namespace Glowstick
         public void Show(Controller ctl)
         {
             c = ctl;
+            bool had = HasData;
             HasData = c != null && c.CopyLast(raw);
-            if (HasData) { LastPad = Pad.Parse(raw); LightBar = c.Out; }
+            if (HasData)
+            {
+                Pad old = LastPad; Rgb oldLight = LightBar;
+                LastPad = Pad.Parse(raw); LightBar = c.Out;
+                // The drawing shows buttons, sticks, triggers, fingers and the light bar — not the motion sensors, whose noise
+                // changes every report: redraw only when something drawn has changed
+                if (had && SameDrawing(old, LastPad) && oldLight.R == LightBar.R && oldLight.G == LightBar.G && oldLight.B == LightBar.B) return;
+            }
             InvalidateVisual();
+        }
+
+        static bool SameDrawing(Pad a, Pad b)
+        {
+            return a.Buttons == b.Buttons && a.LX == b.LX && a.LY == b.LY && a.RX == b.RX && a.RY == b.RY && a.L2 == b.L2 && a.R2 == b.R2
+                && a.Touch1 == b.Touch1 && a.Touch2 == b.Touch2 && a.T1X == b.T1X && a.T1Y == b.T1Y && a.T2X == b.T2X && a.T2Y == b.T2Y;
         }
 
         // For previews: draw this report without a controller

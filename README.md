@@ -1,8 +1,10 @@
 <div align="center">
 
+<img src="assets/logo/glowstick-256.png" alt="Glowstick logo" width="128">
+
 # Glowstick
 
-**Light bar control for DualShock 4 and DualSense on Windows.**
+**Light bar, input mapping and game integrations for DualShock 4 and DualSense on Windows.**
 
 [![Latest release](https://img.shields.io/github/v/release/tkachuktaras/glowstick?style=flat-square)](https://github.com/tkachuktaras/glowstick/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/tkachuktaras/glowstick/total?style=flat-square)](https://github.com/tkachuktaras/glowstick/releases)
@@ -15,7 +17,7 @@
 
 </div>
 
-Colors and animations for your controllers' light bars, their battery in the tray, the touchpad as a mouse — and games that see the controller without fighting over it.
+Set the color and animation of your controllers' light bars, watch their battery from the tray, use the touchpad as a mouse — and play without Glowstick getting in the game's way: games get a virtual controller, the real one stays with Glowstick.
 
 ## Download
 
@@ -43,31 +45,33 @@ Needs Windows 10/11 and a DualShock 4 or DualSense (USB or Bluetooth).
 
 ### Free
 
-- **Presets:** solid colors, pairs, player colors and three animations, with brightness and speed.
-- **Battery in the tray**, with a warning when it runs low, a "charged" alert and the time to a full charge; on the charger the light bar shows the charge filling up.
-- **Hotkeys (hold PS):** switch presets, change brightness, show the battery, toggle the touchpad mouse, turn a Bluetooth controller off.
-- **Touchpad as mouse:** cursor, scrolling, tap to click with a light click feel, drag, edge swipes; turns itself off in fullscreen games.
-- **Desktop mode:** with no game in front the controller drives Windows — cursor, scrolling, Enter, Esc, switching windows; PS + Share turns it on and off.
-- **DualSense:** light bar, rumble, battery, touchpad, gyro and the player LEDs.
+- **Game mode:** games get a virtual DualShock 4 and never see the real controller, so Glowstick and the game don't fight over it; rumble goes through.
+- **Presets:** solid colors, pairs, player colors, three animations and two Windows-based ones (accent color, wallpaper); brightness and speed.
+- **The game's own light bar:** games that set the light bar (health, chases, team colors) show it on the real controller.
+- **Battery in the tray** with low and "charged" alerts and the time left or to full; on the charger the light bar shows the charge filling up.
+- **Hotkeys (hold PS):** switch presets, brightness, battery, touchpad mouse, desktop mode, on-screen keyboard, turn a Bluetooth controller off.
+- **Touchpad as mouse:** cursor, scrolling, taps, drag, trackball glide, edge swipes, light click feel; turns itself off in fullscreen games.
+- **Desktop mode:** with no game in front the controller drives Windows — cursor, scrolling, Enter, Esc, switching windows.
+- **DualSense:** light bar, rumble, battery, touchpad, gyro, player LEDs, adaptive triggers (test).
+- **Power:** the light bar dims when the controller is put down; a Bluetooth controller turns itself off when idle.
+- **Controller health:** weak Bluetooth link and stick drift warnings, find a controller (rumble + flash), who is who.
+- **Steam Input check:** warns when Steam also handles the controller (double input, wrong prompts) and says how to turn it off.
 - **Controller test:** buttons, sticks, triggers, touchpad, gyro, rumble.
-- **Controller health:** warnings for a weak Bluetooth link and a drifting stick; find a controller (it rumbles and flashes) or see who is who.
-- **Backup** of all settings in one file, made by itself before every update.
-- **Updates** in one click.
+- **Backup** of all settings in one file, made by itself before every update; one-click **updates**; 11 languages.
 
 One controller in the free version.
 
 ### Glowstick Pro
 
-- **Any number of controllers**, with names, their own presets and brightness.
-- **All animations and live presets** that react to music, the screen, the battery, the triggers and the sticks.
+- **Any number of controllers**, with names, their own presets and brightness; **Xbox 360** as the virtual controller; **co-pilot** (two controllers play as one).
+- **All animations and live presets** that react to music, the screen, the battery, triggers and sticks; **music presets** can listen to one app only or to everything but some apps (Windows 11).
 - **Your own presets**, shareable as files.
-- **Profiles** for every controller and game, switched automatically: light bar, input mapping, touchpad; import and export as files.
-- **Input mapping** on par with DS4Windows: remap buttons, sticks, triggers, the touchpad and motion to buttons, keys, the mouse, macros or actions; dead zones and curves; gyro aiming and gyro swipes; flick stick; the touchpad as a stick.
-- **Motion server (Cemuhook / DSU)** — gyro for Cemu, Yuzu / Ryujinx, Dolphin and other emulators.
-- **Game telemetry** on the light bar: RPM shift lights in Forza, F1 and Assetto Corsa, health in CS2 and Dota 2.
-- **Steam library** → game profiles in one click; a game is recognized however it starts.
-- **Music presets** can listen to one app only, or to everything but some apps (Windows 11).
-- **Co-pilot:** two controllers play as one.
+- **Profiles** for every controller and game, switched automatically (also by a Steam game): light bar, input mapping, touchpad, rumble; import and export as files.
+- **Input mapping** on par with DS4Windows: remap buttons, sticks, triggers, touchpad and motion to buttons, keys, mouse, macros or actions; shift layers, tap / hold / double, turbo, toggle; dead zones and curves; flick stick; the touchpad as a stick; editable hotkeys.
+- **Gyro:** aiming with the mouse or a stick, smoothing, acceleration, gyro swipes, real-world calibration (a full turn of the controller is a full turn in the game); **motion server (Cemuhook / DSU)** for Cemu, Yuzu / Ryujinx, Dolphin and other emulators.
+- **Adaptive triggers** (DualSense): your own feel per profile — resistance, weapon click or vibration — tried live on the pad.
+- **Game telemetry** on the light bar: shift lights in racing games (Forza, F1, Assetto Corsa, Dirt / Grid, iRacing, BeamNG, AMS2 and more), health in CS2, Dota 2 and League of Legends, boost in Rocket League, ship alarms in Elite Dangerous, G-load in X-Plane.
+- **Steam library** → game profiles in one click.
 - **DualSense:** the Mute button switches the PC microphone and its light shows it (or the battery, touch…); haptic rumble.
 - **PC lighting sync:** OpenRGB and Razer Chroma; Corsair iCUE and Xbox controllers as a source — experimental.
 - **Battery history** and wear warning.

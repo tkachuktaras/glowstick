@@ -46,7 +46,12 @@ namespace Glowstick
             return s != null && map.TryGetValue(s, out v) && !string.IsNullOrEmpty(v) ? v : s;
         }
 
-        public static string F(string s, params object[] args) { return string.Format(T(s), args); }
+        // A translation with the wrong placeholders (a hand-made file in %APPDATA%\Glowstick\lang) must not crash the window: the English text is used
+        public static string F(string s, params object[] args)
+        {
+            try { return string.Format(T(s), args); }
+            catch (FormatException) { return string.Format(s, args); }
+        }
 
         // Language from settings, otherwise Windows' language (pt → pt-BR, zh → zh-CN), otherwise English
         static string Resolve(string setting)

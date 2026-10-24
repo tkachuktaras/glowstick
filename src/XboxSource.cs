@@ -40,16 +40,18 @@ namespace Glowstick
 
         static void Loop()
         {
-            long scanAt = -100000;
+            long scanAt = -100000, ownAt = -100000;
             int physical = 0;
             byte[] raw = new byte[63];
+            HashSet<int> own = null;
+            timeBeginPeriod(1);   // Sleep(4) is 15 ms at the default timer rate — that much latency added to every Xbox input
             try
             {
                 while (running)
                 {
                     long now = Engine.Ms;
                     if (now - scanAt > 2000) { scanAt = now; physical = HideAll(); }
-                    HashSet<int> own = Engine.OwnXInputSlots();
+                    if (own == null || now - ownAt > 500) { ownAt = now; own = Engine.OwnXInputSlots(); }   // our own virtual pads change rarely
                     int read = 0;
                     for (int i = 0; i < 4; i++)
                     {
@@ -69,7 +71,7 @@ namespace Glowstick
                 }
             }
             catch (Exception e) { Log.Error("Xbox source", e); }
-            finally { for (int i = 0; i < 4; i++) Drop(i); Count = 0; running = false; }
+            finally { timeEndPeriod(1); for (int i = 0; i < 4; i++) Drop(i); Count = 0; running = false; }
         }
 
         static Slot Open(int i)
@@ -164,6 +166,9 @@ namespace Glowstick
         [DllImport("xinput1_4.dll", EntryPoint = "#100")] static extern int XInputGetStateEx(int index, out XState state);   // + the Guide button
         [DllImport("xinput1_4.dll")] static extern int XInputGetState(int index, out XState state);
         [DllImport("xinput1_4.dll")] static extern int XInputSetState(int index, ref XVibration v);
+
+        [DllImport("winmm.dll")] static extern uint timeBeginPeriod(uint ms);
+        [DllImport("winmm.dll")] static extern uint timeEndPeriod(uint ms);
 
         static bool exUnavailable;
 

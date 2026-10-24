@@ -460,6 +460,10 @@ namespace Glowstick
                     try { c = (slot[i] < 0 ? pr.Fn(T, 0, 1) : pr.Fn(T, slot[i], shared)).Clamp(); } catch { c = new Rgb(0, 0, 0); }
                     d.Fade = Math.Min(1, d.Fade + dt / 0.4);
                     if (d.Fade < 1) c = Rgb.Lerp(d.FadeFrom, c, PresetLib.Smooth(d.Fade));
+                    int gl = GameLightOf(d, nowMs);
+                    if (gl >= 0) c = Rgb.Hex(gl);   // the game's own light bar beats the preset (health, chases, team colors)
+                    else if (d.WasGameLit) { d.FadeFrom = d.Current; d.Fade = 0; }
+                    d.WasGameLit = gl >= 0;
                     d.Current = c;
                     c = Overlays(d, st, c, nowMs, dt);
                     Rgb o = c.Mul(Brightness * d.Dim * d.PadBrightness).Clamp(); d.Out = o;
@@ -473,11 +477,21 @@ namespace Glowstick
                     }
                 }
                 Live.Cur = null;
-                Thread.Sleep(10);
+                Thread.Sleep(arr.Length == 0 ? 50 : 10);   // nothing connected: nothing to animate
             }
         }
 
         static readonly byte[] lastRaw = new byte[63];
+
+        // Show what the game does with the light bar of the virtual DualShock 4 (Settings → General)
+        public static bool GameLight = true;
+
+        // The light bar color the game set for this controller as 0xRRGGBB, or -1 — it sets none (or quit, or the option is off)
+        internal static int GameLightOf(Controller d, long now)
+        {
+            int g = d.GameLight;
+            return GameLight && g >= 0 && now - d.GameLightMs < Controller.GameLightHoldMs ? g : -1;
+        }
 
         // Numbers the controllers for their presets: one on a preset of its own gets -1 (it plays as 0 of 1); the others are
         // numbered 0, 1, … among themselves. Returns how many share the global preset.

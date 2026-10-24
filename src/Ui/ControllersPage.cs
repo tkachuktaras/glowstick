@@ -13,7 +13,7 @@ namespace Glowstick
     internal class ControllersPage : UserControl
     {
         readonly StackPanel list = new StackPanel();
-        readonly TextBlock none = new TextBlock(), hint = new TextBlock();
+        readonly TextBlock none = new TextBlock(), hint = new TextBlock(), steam = new TextBlock();
         readonly Dictionary<string, Row> rows = new Dictionary<string, Row>();
         string shownIds = null;   // order + ids the rows were built for
         List<Preset> shownPresets;
@@ -52,6 +52,9 @@ namespace Glowstick
             hint.Text = Lang.T("Drag a card to change the controller order.");
             hint.Margin = new Thickness(0, -6, 0, 12);
             page.Children.Add(hint);
+            steam.Foreground = Theme.Brush("Warn"); steam.TextWrapping = TextWrapping.Wrap; steam.Visibility = Visibility.Collapsed;
+            steam.Margin = new Thickness(0, 0, 0, 12);
+            page.Children.Add(steam);
 
             new DragReorder(list, true, el => (string)((FrameworkElement)el).Tag, (id, k) => PadMenu.IfPresent(id, () => Engine.MoveTo(id, k)));
 
@@ -64,6 +67,9 @@ namespace Glowstick
 
         public void OnTick(ControllerInfo[] snap)
         {
+            string sw = snap.Length > 0 ? SteamInput.Warning() : null;
+            string swText = sw != null ? "⚠ " + sw : "";
+            if (steam.Text != swText) { steam.Text = swText; steam.Visibility = sw == null ? Visibility.Collapsed : Visibility.Visible; }
             string ids = string.Join("|", Array.ConvertAll(snap, c => c.Id)) + "|+" + Engine.OverLimit;
             if (ids != shownIds || !ReferenceEquals(shownPresets, Engine.Presets)) Build(snap, ids);
             for (int k = 0; k < snap.Length; k++) Update(rows[snap[k].Id], snap[k], k, snap.Length);

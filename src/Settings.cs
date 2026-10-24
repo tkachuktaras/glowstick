@@ -67,6 +67,7 @@ namespace Glowstick
                     AudioCapture.Apps = apps.ToArray();
                 }
                 if (s.TryGetValue("BtPollMs", out v)) Engine.BtPollMs = Math.Max(0, Math.Min(16, Convert.ToInt32(v)));
+                if (s.TryGetValue("GameLight", out v)) Engine.GameLight = Convert.ToBoolean(v);
                 if (s.TryGetValue("NotifyFlash", out v)) Engine.Defaults.NotifyFlash = Convert.ToBoolean(v);
                 if (s.TryGetValue("Hotkeys", out v)) Engine.Hotkeys = Convert.ToBoolean(v);
                 if (s.TryGetValue("HotkeyMap", out v)) HotkeyMap.Load(v);
@@ -161,6 +162,7 @@ namespace Glowstick
                 s["MusicApps"] = new List<string>(AudioCapture.Apps);
                 s.Remove("GameMode"); s.Remove("VirtualPad");   // game mode is always on, the virtual pad is always a DS4
                 s["BtPollMs"] = Engine.BtPollMs;
+                s["GameLight"] = Engine.GameLight;
                 s["NotifyFlash"] = Engine.Defaults.NotifyFlash;
                 s["Hotkeys"] = Engine.Hotkeys;
                 s["HotkeyMap"] = HotkeyMap.Save();
