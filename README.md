@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="assets/logo/glowstick-256.png" alt="Glowstick logo" width="128">
-
 # Glowstick
 
 **Light bar, input mapping and game integrations for DualShock 4 and DualSense on Windows.**
